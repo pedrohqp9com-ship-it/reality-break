@@ -15,7 +15,8 @@ Commits no histórico: *etapa 1* (simulação), *etapa 2* (renderização, contr
   barreiras de energia, portal, vazio com pontos seguros.
 - 3 desafios progressivos; progresso e ajustes salvos no aparelho.
 - Controles de PC e de Android; HUD; menus; resolução adaptativa.
-- 78 testes de unidade/integração e 30 de ponta a ponta; CI no GitHub Actions.
+- 78 testes de unidade/integração e 14 cenários de ponta a ponta (30 execuções em PC e Android
+  emulado); CI no GitHub Actions.
 
 ## Limitações conhecidas
 

@@ -70,7 +70,7 @@ npm run preview      # serve dist/ em http://localhost:4173
 npm run typecheck    # TypeScript
 npm run lint         # ESLint
 npm test             # Vitest: física, gravidade, desafios, robôs, interface (78 testes)
-npm run test:e2e     # Playwright no build: PC + Android emulado em paisagem e em pé (30 testes)
+npm run test:e2e     # Playwright no build: 14 cenários em PC + Android (paisagem e em pé) = 30 execuções
 npm run check        # typecheck + lint + test + build
 ```
 
