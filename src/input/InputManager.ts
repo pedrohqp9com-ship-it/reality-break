@@ -3,6 +3,13 @@ import { isMoveKey, KEY_ACTIONS, moveFromKeys, type GameAction, type InputMode }
 /** Radianos por pixel (antes do ajuste de sensibilidade). */
 const MOUSE_LOOK = 0.0024;
 const TOUCH_LOOK = 0.0058;
+/**
+ * Alguns navegadores mandam um movimento de mouse "fantasma" (às vezes enorme)
+ * logo depois da captura do cursor. Ignoramos esse instante e picos absurdos,
+ * para a câmera não dar um salto ao começar a jogar.
+ */
+const LOCK_SETTLE_MS = 120;
+const MAX_MOUSE_STEP = 250;
 
 export interface LookDelta {
   yaw: number;
@@ -32,6 +39,7 @@ export class InputManager {
   private dragPointer: number | null = null;
   private dragX = 0;
   private dragY = 0;
+  private ignoreMouseUntil = 0;
   private readonly cleanup: (() => void)[] = [];
 
   constructor(private readonly canvas: HTMLCanvasElement, touchFirst: boolean) {
@@ -41,7 +49,8 @@ export class InputManager {
     this.listen(window, 'blur', () => this.keys.clear());
     this.listen(document, 'mousemove', (e) => this.onMouseMove(e as MouseEvent));
     this.listen(document, 'pointerlockchange', () => {
-      if (!this.pointerLocked) this.onPointerLockLost?.();
+      if (this.pointerLocked) this.ignoreMouseUntil = performance.now() + LOCK_SETTLE_MS;
+      else this.onPointerLockLost?.();
     });
     this.listen(canvas, 'pointerdown', (e) => this.onCanvasPointerDown(e as PointerEvent));
     this.listen(window, 'pointermove', (e) => this.onCanvasPointerMove(e as PointerEvent));
@@ -106,6 +115,8 @@ export class InputManager {
 
   private onMouseMove(event: MouseEvent): void {
     if (!this.active || !this.pointerLocked) return;
+    if (performance.now() < this.ignoreMouseUntil) return;
+    if (Math.abs(event.movementX) > MAX_MOUSE_STEP || Math.abs(event.movementY) > MAX_MOUSE_STEP) return;
     this.addLook(event.movementX * MOUSE_LOOK, event.movementY * MOUSE_LOOK);
   }
 

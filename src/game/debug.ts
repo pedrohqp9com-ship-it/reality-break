@@ -5,6 +5,7 @@ declare global {
     __REALITY_BREAK__?: {
       state: () => ReturnType<Game['debugState']>;
       teleport: (x: number, y: number, z: number) => void;
+      setView: (yaw: number, pitch: number) => void;
     };
   }
 }
@@ -18,5 +19,10 @@ export function installDebugHooks(game: Game): void {
   window.__REALITY_BREAK__ = {
     state: () => game.debugState(),
     teleport: (x, y, z) => game.sim?.player.teleport({ x, y, z }),
+    setView: (yaw, pitch) => {
+      if (!game.sim) return;
+      game.sim.view.yaw = yaw;
+      game.sim.view.pitch = pitch;
+    },
   };
 }

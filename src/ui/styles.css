@@ -414,11 +414,30 @@ thead th {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
-.hud-top-left {
+.hud-col {
   position: absolute;
-  top: calc(12px + var(--safe-top));
+  top: calc(10px + var(--safe-top));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hud-left {
   left: calc(14px + var(--safe-left));
-  max-width: min(46vw, 420px);
+  align-items: flex-start;
+  max-width: min(44vw, 420px);
+}
+
+.hud-right {
+  right: calc(12px + var(--safe-right));
+  align-items: flex-end;
+  width: min(280px, 42vw);
+}
+
+.hud-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .hud-title {
@@ -433,15 +452,6 @@ thead th {
   color: var(--muted);
   font-size: 0.85rem;
   line-height: 1.35;
-}
-
-.hud-top-right {
-  position: absolute;
-  top: calc(10px + var(--safe-top));
-  right: calc(12px + var(--safe-right));
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .hud-timer {
@@ -471,9 +481,6 @@ thead th {
 }
 
 .hud-gravity {
-  position: absolute;
-  top: calc(64px + var(--safe-top));
-  left: calc(14px + var(--safe-left));
   display: flex;
   align-items: center;
   gap: 10px;
@@ -571,14 +578,14 @@ thead th {
 }
 
 .hud-plates {
-  position: absolute;
-  top: calc(12px + var(--safe-top));
-  left: 50%;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: min(300px, 40vw);
-  transform: translateX(-50%);
+  width: 100%;
+}
+
+.hud-plates:empty {
+  display: none;
 }
 
 .hud-plate {
@@ -631,7 +638,7 @@ thead th {
 }
 
 .hud-hint {
-  position: absolute;
+  position: fixed;
   left: 50%;
   bottom: calc(56px + var(--safe-bottom));
   max-width: min(640px, 90vw);
@@ -676,9 +683,6 @@ thead th {
 }
 
 .hud-fps {
-  position: absolute;
-  top: calc(64px + var(--safe-top));
-  right: calc(14px + var(--safe-right));
   font: 0.8rem var(--mono);
   color: var(--muted);
 }
@@ -697,11 +701,18 @@ thead th {
   display: none;
 }
 
+/* No celular a dica fica na coluna da esquerda, longe dos polegares. */
 .hud[data-mode='touch'] .hud-hint {
-  top: calc(118px + var(--safe-top));
-  bottom: auto;
-  max-width: min(520px, 56vw);
-  font-size: 0.85rem;
+  position: static;
+  max-width: 100%;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  text-align: left;
+  transform: none;
+}
+
+.hud[data-mode='touch'] .hud-hint:not(.visible) {
+  display: none;
 }
 
 /* ------------------------------------------------------- controles de toque */
@@ -838,16 +849,13 @@ thead th {
   border-color: rgba(255, 63, 209, 0.6);
 }
 
-@media (max-height: 420px) {
+@media (max-height: 420px), (max-width: 600px) {
   .hud-objective {
     display: none;
   }
-  .hud-gravity {
-    top: calc(40px + var(--safe-top));
-  }
-  .hud[data-mode='touch'] .hud-hint {
-    top: calc(96px + var(--safe-top));
-  }
+}
+
+@media (max-height: 420px) {
   .panel {
     padding: 18px 20px;
   }
@@ -860,11 +868,14 @@ thead th {
 }
 
 @media (max-width: 600px) {
-  .hud-plates {
-    top: auto;
-    bottom: calc(118px + var(--safe-bottom));
-    left: calc(14px + var(--safe-left));
-    width: min(260px, 60vw);
-    transform: none;
+  .hud-left {
+    max-width: 52vw;
+  }
+  .hud-title {
+    font-size: 0.8rem;
+  }
+  .hud-plate-head {
+    flex-direction: column;
+    gap: 2px;
   }
 }

@@ -50,6 +50,7 @@ export class Game {
   private fps = 60;
   private needsRender = true;
   private rafId = 0;
+  private pausedAt = 0;
 
   constructor(private readonly root: HTMLElement, canvas: HTMLCanvasElement) {
     const touchFirst = window.matchMedia?.('(pointer: coarse)').matches ?? false;
@@ -163,6 +164,7 @@ export class Game {
 
   pause(): void {
     if (this.state !== 'playing') return;
+    this.pausedAt = performance.now();
     this.setState('paused');
     this.input.releasePointerLock();
     this.screens.pause();
@@ -246,7 +248,9 @@ export class Game {
     const sim = this.sim;
     if (action === 'pause') {
       if (this.state === 'playing') this.pause();
-      else if (this.state === 'paused') this.resume();
+      // No PC, Esc solta o cursor (o que já pausa) e às vezes também chega como
+      // tecla: sem esta folga, a mesma tecla pausaria e despausaria o jogo.
+      else if (this.state === 'paused' && performance.now() - this.pausedAt > 400) this.resume();
       return;
     }
     if (!sim || this.state !== 'playing') return;

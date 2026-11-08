@@ -86,7 +86,7 @@ export const inversao: LevelDef = {
   ],
   hints: [
     {
-      zone: zone([-6, -1, -16], [6, 9, -7]),
+      zone: zone([-6, -1, -16], [6, 9, 6]),
       text: 'A passagem fica junto ao teto, alta demais até para o salto Leve. Use [INVERTER].',
     },
     {

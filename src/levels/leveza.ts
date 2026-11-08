@@ -77,7 +77,7 @@ export const leveza: LevelDef = {
   ],
   hints: [
     {
-      zone: zone([-6, -1, -12], [6, 3, 6]),
+      zone: zone([-6, -1, -12], [6, 12, 6]),
       text: 'A plataforma tem 3,2 m; um salto normal chega a ~1,8 m. Ative [LEVE] e pule com [PULAR].',
     },
     {

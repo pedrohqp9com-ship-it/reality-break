@@ -62,24 +62,32 @@ export class Hud {
     this.fps = el('div', { className: 'hud-fps', attrs: { 'data-testid': 'fps' } });
     this.keys = el('div', { className: 'hud-keys' });
 
+    const gravity = el('div', {
+      className: 'hud-gravity',
+      attrs: { 'data-testid': 'gravity' },
+      children: [
+        el('div', { className: 'hud-compass', children: [this.arrow] }),
+        el('div', { className: 'hud-gravity-text', children: [this.axis, this.level, this.aim] }),
+      ],
+    });
+    // Duas colunas: à esquerda o desafio e a gravidade; à direita tempo, pausa e placas.
     this.root = el('div', {
       className: 'hud',
       attrs: { 'data-testid': 'hud' },
       children: [
-        el('div', { className: 'hud-top-left', children: [this.title, this.objective] }),
-        el('div', { className: 'hud-top-right', children: [this.timer, this.pauseButton] }),
         el('div', {
-          className: 'hud-gravity',
-          attrs: { 'data-testid': 'gravity' },
+          className: 'hud-col hud-left',
+          children: [this.title, this.objective, gravity, this.hint],
+        }),
+        el('div', {
+          className: 'hud-col hud-right',
           children: [
-            el('div', { className: 'hud-compass', children: [this.arrow] }),
-            el('div', { className: 'hud-gravity-text', children: [this.axis, this.level, this.aim] }),
+            el('div', { className: 'hud-row', children: [this.timer, this.pauseButton] }),
+            this.plates,
+            this.fps,
           ],
         }),
-        this.plates,
-        this.hint,
         this.toast,
-        this.fps,
         this.keys,
       ],
     });
