@@ -25,13 +25,13 @@ export const inversao: LevelDef = {
     'A intensidade (Leve, Normal, Pesada) continua disponível.',
   ],
   powers: ['intensity', 'flip'],
-  spawn: [0, 0.55, -2],
+  spawn: [0, 0.55, 0],
   yaw: 0,
-  bounds: zone([-20, -12, -60], [20, 20, 12]),
+  bounds: zone([-20, -12, -60], [20, 20, 16]),
   statics: [
     // Sala A
-    block([-6, -1, -16], [6, 0, 2], 'floor'),
-    block([-6, 9, -16], [6, 10, 2], 'floor'),
+    block([-6, -1, -16], [6, 0, 6], 'floor'),
+    block([-6, 9, -16], [6, 10, 6], 'floor'),
     block([-6, -1, -17], [6, 7.2, -16], 'wall'),
     block([-6, 7.2, -17], [6, 7.6, -16], 'accent'),
     // Sala B: chão com vãos
@@ -47,9 +47,9 @@ export const inversao: LevelDef = {
     block([-6, 9, -31.3], [6, 9.2, -31], 'accent'),
     block([-6, 9, -37], [6, 9.2, -36.7], 'accent'),
     // Paredes
-    block([-7, -6, -53], [-6, 15, 3], 'wall'),
-    block([6, -6, -53], [7, 15, 3], 'wall'),
-    block([-6, -1, 2], [6, 10, 3], 'wall'),
+    block([-7, -6, -53], [-6, 15, 7], 'wall'),
+    block([6, -6, -53], [7, 15, 7], 'wall'),
+    block([-6, -1, 6], [6, 10, 7], 'wall'),
     block([-6, -6, -53], [6, 15, -52], 'wall'),
   ],
   objects: [

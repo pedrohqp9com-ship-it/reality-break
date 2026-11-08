@@ -4,12 +4,12 @@ import { jumpHeight, POWERS } from '../sim/gravity';
 import { insideAabb, Simulation } from '../sim/simulation';
 import { solveInversao, solveLeveza, solveOrientacao } from '../test/bots';
 import { IDLE, runUntil, steerTowards } from '../test/helpers';
-import { slabWithHole } from './builders';
 import { getLevel, LEVELS, nextLevel } from './index';
 import { INVERSAO_CEILING, INVERSAO_WALL_TOP } from './inversao';
 import { LEVEZA_LEDGE_HEIGHT } from './leveza';
 import { ORIENTACAO_BARRIER_Y } from './orientacao';
-import type { LevelDef, StaticBoxDef, Vec3Tuple } from './types';
+import type { LevelDef, Vec3Tuple } from './types';
+import { axisVector } from '../sim/axis';
 
 function sphereHitsBox(p: Vec3Tuple, r: number, box: { center: Vec3Tuple; size: Vec3Tuple }) {
   let d2 = 0;
@@ -23,7 +23,7 @@ function sphereHitsBox(p: Vec3Tuple, r: number, box: { center: Vec3Tuple; size: 
 }
 
 function solids(level: LevelDef): { center: Vec3Tuple; size: Vec3Tuple }[] {
-  return [...level.statics, ...level.plates, ...level.gates];
+  return [...level.statics, ...level.gates];
 }
 
 describe('dados dos desafios', () => {
@@ -66,11 +66,17 @@ describe('dados dos desafios', () => {
     }
   });
 
-  it('laje com furo cobre a área exata, sem sobreposição', () => {
-    const pieces = slabWithHole([-6, 0, -10], [6, 1, 0], 1, [1, 0, -6], [3, 1, -4], 'floor');
-    const area = (b: StaticBoxDef) => b.size[0] * b.size[2];
-    expect(pieces.reduce((sum, b) => sum + area(b), 0)).toBeCloseTo(12 * 10 - 2 * 2);
-    expect(pieces).toHaveLength(4);
+  it.each(LEVELS.map((l) => [l.id, l] as const))('%s: placas ficam sobre uma superfície', (_, level) => {
+    for (const plate of level.plates) {
+      const normal = axisVector(plate.normal);
+      // Um ponto logo "atrás" da placa precisa estar dentro de um bloco fixo.
+      const behind: Vec3Tuple = [
+        plate.center[0] - normal.x * 0.05,
+        plate.center[1] - normal.y * 0.05,
+        plate.center[2] - normal.z * 0.05,
+      ];
+      expect(level.statics.some((b) => sphereHitsBox(behind, 0.01, b))).toBe(true);
+    }
   });
 });
 

@@ -1,9 +1,6 @@
-import { block, centerOf, sizeOf, slabWithHole, zone } from './builders';
+import { block, centerOf, sizeOf, zone } from './builders';
 import type { LevelDef, Vec3Tuple } from './types';
 
-// Furo no topo da plataforma onde fica a placa de pressão (rente ao chão).
-const PLATE_MIN: Vec3Tuple = [1, 2.2, -23];
-const PLATE_MAX: Vec3Tuple = [3, 3.2, -21];
 const GATE_MIN: Vec3Tuple = [-6, 3.2, -29];
 const GATE_MAX: Vec3Tuple = [6, 12, -28];
 
@@ -30,16 +27,16 @@ export const leveza: LevelDef = {
     'PESADA (2 g): tudo pesa o dobro — inclusive sobre as placas de pressão.',
   ],
   powers: ['intensity'],
-  spawn: [0, 0.55, -1],
+  spawn: [0, 0.55, 0],
   yaw: 0,
-  bounds: zone([-20, -20, -50], [20, 40, 15]),
+  bounds: zone([-20, -20, -50], [20, 40, 20]),
   statics: [
-    block([-6, -1, -12], [6, 0, 2], 'floor'),
+    block([-6, -1, -12], [6, 0, 6], 'floor'),
     block([-6, -1, -38], [6, 2.2, -12], 'wall'),
-    ...slabWithHole([-6, 2.2, -38], [6, 3.2, -12], 1, PLATE_MIN, PLATE_MAX, 'floor'),
-    block([-7, -1, -39], [-6, 12, 3], 'wall'),
-    block([6, -1, -39], [7, 12, 3], 'wall'),
-    block([-6, -1, 2], [6, 12, 3], 'wall'),
+    block([-6, 2.2, -38], [6, 3.2, -12], 'floor'),
+    block([-7, -1, -39], [-6, 12, 7], 'wall'),
+    block([6, -1, -39], [7, 12, 7], 'wall'),
+    block([-6, -1, 6], [6, 12, 7], 'wall'),
     block([-6, -1, -39], [6, 12, -38], 'wall'),
     // Marcos visuais nas laterais da plataforma.
     block([-6, 3.2, -12.6], [-5.4, 3.5, -12], 'accent'),
@@ -61,8 +58,8 @@ export const leveza: LevelDef = {
   plates: [
     {
       id: 'placa',
-      center: centerOf(PLATE_MIN, PLATE_MAX),
-      size: sizeOf(PLATE_MIN, PLATE_MAX),
+      center: [2, 3.2, -22],
+      size: [2.4, 0.04, 2.4],
       normal: '+y',
       threshold: 1500,
       gate: 'barreira',
@@ -80,7 +77,7 @@ export const leveza: LevelDef = {
   ],
   hints: [
     {
-      zone: zone([-6, -1, -12], [6, 3, 2]),
+      zone: zone([-6, -1, -12], [6, 3, 6]),
       text: 'A plataforma tem 3,2 m; um salto normal chega a ~1,8 m. Ative [LEVE] e pule com [PULAR].',
     },
     {

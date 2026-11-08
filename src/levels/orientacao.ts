@@ -1,9 +1,6 @@
-import { block, centerOf, sizeOf, slabWithHole, zone } from './builders';
+import { block, centerOf, sizeOf, zone } from './builders';
 import type { LevelDef, Vec3Tuple } from './types';
 
-// Placa embutida na parede norte, rente ao chão.
-const PLATE_MIN: Vec3Tuple = [-1.2, 0, -9];
-const PLATE_MAX: Vec3Tuple = [1.2, 2.4, -8];
 const GATE_MIN: Vec3Tuple = [-8, 10, -8];
 const GATE_MAX: Vec3Tuple = [8, 11, 8];
 
@@ -32,7 +29,7 @@ export const orientacao: LevelDef = {
     'Inverter e a intensidade continuam disponíveis. Combine os três.',
   ],
   powers: ['intensity', 'flip', 'aim'],
-  spawn: [0, 0.55, 5],
+  spawn: [0, 0.55, 3.5],
   yaw: 0,
   bounds: zone([-20, -10, -20], [20, 35, 20]),
   statics: [
@@ -41,7 +38,7 @@ export const orientacao: LevelDef = {
     block([-9, 0, -8], [-8, 24, 8], 'wall'),
     block([8, 0, -8], [9, 24, 8], 'wall'),
     block([-9, 0, 8], [9, 24, 9], 'wall'),
-    ...slabWithHole([-8, 0, -9], [8, 24, -8], 2, PLATE_MIN, PLATE_MAX, 'wall'),
+    block([-8, 0, -9], [8, 24, -8], 'wall'),
     // Sacada do portal
     block([-2.5, 13.4, -8], [2.5, 14, -5], 'floor'),
     block([-2.5, 13.2, -5.2], [2.5, 13.4, -5], 'accent'),
@@ -62,8 +59,9 @@ export const orientacao: LevelDef = {
   plates: [
     {
       id: 'placa-norte',
-      center: centerOf(PLATE_MIN, PLATE_MAX),
-      size: sizeOf(PLATE_MIN, PLATE_MAX),
+      // Na parede norte, rente ao chão.
+      center: [0, 1.2, -8],
+      size: [2.4, 2.4, 0.04],
       normal: '+z',
       threshold: 1500,
       gate: 'barreira',

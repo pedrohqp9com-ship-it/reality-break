@@ -51,8 +51,19 @@ export const GROUP = {
   ALL: -1,
 } as const;
 
-/** Suavização da leitura das placas de pressão (s) e histerese para não piscar. */
+/**
+ * Placas de pressão: suavização da leitura (s), histerese para não piscar e tempo
+ * que a força precisa ficar acima do limite. Um impacto rápido (uma queda) gera
+ * um pico de força real, mas curto; a placa só ativa com força sustentada.
+ */
 export const PLATE = {
   smoothing: 0.08,
   releaseRatio: 0.95,
+  holdTime: 0.5,
 } as const;
+
+/**
+ * Relaxação dos contatos da sonda (cannon-es usa 3 por padrão). Um valor maior
+ * amortece a correção de penetração e reduz o quique em quedas rápidas.
+ */
+export const PLAYER_CONTACT_RELAXATION = 6;

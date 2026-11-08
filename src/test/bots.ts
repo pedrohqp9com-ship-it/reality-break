@@ -72,10 +72,10 @@ export function solveLeveza(sim: Simulation): boolean {
   );
   if (!onTop) return false;
   sim.setIntensity('normal');
-  if (!push(sim, 'cubo-denso', { x: 2, y: 3.7, z: -22 })) return false;
+  if (!push(sim, 'cubo-denso', { x: 2, y: 3.7, z: -22 }, 0.2)) return false;
   hold(sim, 0.5);
   sim.setIntensity('pesada');
-  hold(sim, 0.5);
+  hold(sim, 1);
   // Sai da frente do cubo e vai até o portal pela barreira aberta.
   if (!goTo(sim, { x: -2, y: 3.7, z: -24 })) return false;
   return runUntil(sim, 20, (s) => steerTowards(s, { x: 0, y: 4.6, z: -34 }), (s) => s.completed);
@@ -106,7 +106,7 @@ export function solveOrientacao(sim: Simulation): boolean {
   if (!push(sim, 'cubo-denso', { x: 0, y: 0.5, z: -7.5 }, 0.35)) return false;
   hold(sim, 0.5);
   sim.setIntensity('pesada');
-  hold(sim, 0.5);
+  hold(sim, 1);
   if (!sim.gates[0]?.open) return false;
   // Sobe pela parede contornando a sacada e para logo acima dela.
   if (!goTo(sim, { x: 4.5, y: 9, z: -7.5 }, 0.5)) return false;

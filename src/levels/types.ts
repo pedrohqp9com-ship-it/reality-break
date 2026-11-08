@@ -34,10 +34,15 @@ export interface DynamicBoxDef {
   readonly home?: Aabb;
 }
 
-/** Placa de pressão embutida em uma superfície. Mede a força real dos contatos. */
+/**
+ * Placa de pressão: uma área marcada em um piso ou parede. Mede a força real que
+ * os corpos fazem contra a superfície ali (lida dos contatos da física).
+ */
 export interface PlateDef {
   readonly id: string;
+  /** Centro da placa, sobre a superfície. */
   readonly center: Vec3Tuple;
+  /** Dimensões da área; a espessura (no eixo da normal) é só visual. */
   readonly size: Vec3Tuple;
   /** Direção para onde a face sensível aponta (para fora da superfície). */
   readonly normal: Axis;

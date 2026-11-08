@@ -22,14 +22,15 @@ import {
 } from './gravity';
 import {
   clampSpeed,
-  contactForceAlong,
   createDynamicBox,
   createPhysicsWorld,
   createStaticBox,
   raycast,
   setCollidable,
+  surfaceForceInRegion,
   type PhysicsWorld,
   type RayHit,
+  type Region,
 } from './physics';
 import { Player, type MoveInput } from './player';
 
@@ -61,9 +62,12 @@ export interface ObjectRuntime {
 
 export interface PlateRuntime {
   readonly def: PlateDef;
-  readonly body: Body;
+  /** Área sensível (inclui uma folga na espessura para a penetração dos contatos). */
+  readonly region: Region;
   /** Força medida (N), suavizada. */
   force: number;
+  /** Tempo (s) com a força acima do limite, até `PLATE.holdTime`. */
+  hold: number;
   active: boolean;
 }
 
@@ -85,6 +89,17 @@ const tmpLook = new Vector3();
 
 function toVec(t: Vec3Tuple): Vec3Like {
   return { x: t[0], y: t[1], z: t[2] };
+}
+
+/** Área sensível de uma placa, com 0,15 m de folga para cada lado da superfície. */
+export function plateRegion(def: PlateDef): Region {
+  const margin = 0.15;
+  const [cx, cy, cz] = def.center;
+  const [sx, sy, sz] = def.size;
+  return {
+    min: { x: cx - sx / 2 - margin, y: cy - sy / 2 - margin, z: cz - sz / 2 - margin },
+    max: { x: cx + sx / 2 + margin, y: cy + sy / 2 + margin, z: cz + sz / 2 + margin },
+  };
 }
 
 export function insideAabb(p: Vec3Like, box: Aabb, margin = 0): boolean {
@@ -134,8 +149,9 @@ export class Simulation {
     }));
     this.plates = level.plates.map((def) => ({
       def,
-      body: createStaticBox(this.physics, toVec(def.center), toVec(def.size)),
+      region: plateRegion(def),
       force: 0,
+      hold: 0,
       active: false,
     }));
     this.gates = level.gates.map((def) => ({
@@ -167,6 +183,7 @@ export class Simulation {
     for (const object of this.objects) this.resetObject(object, false);
     for (const plate of this.plates) {
       plate.force = 0;
+      plate.hold = 0;
       plate.active = false;
     }
     for (const gate of this.gates) this.setGate(gate, false, false);
@@ -272,12 +289,16 @@ export class Simulation {
     const blend = 1 - Math.exp(-dt / PLATE.smoothing);
     for (const plate of this.plates) {
       const normal = axisVector(plate.def.normal, tmpLook);
-      const raw = contactForceAlong(this.world.contacts, plate.body, normal);
+      const raw = surfaceForceInRegion(this.world.contacts, plate.region, normal);
       plate.force += (raw - plate.force) * blend;
       const threshold = plate.def.threshold;
-      plate.active = plate.active
-        ? plate.force >= threshold * PLATE.releaseRatio
-        : plate.force >= threshold;
+      if (plate.active) {
+        plate.active = plate.force >= threshold * PLATE.releaseRatio;
+        if (!plate.active) plate.hold = 0;
+      } else {
+        plate.hold = plate.force >= threshold ? plate.hold + dt : 0;
+        plate.active = plate.hold >= PLATE.holdTime - 1e-9;
+      }
     }
     for (const gate of this.gates) {
       const wantsOpen = this.plates.some((p) => p.def.gate === gate.def.id && p.active);

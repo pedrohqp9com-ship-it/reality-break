@@ -97,7 +97,7 @@ describe('placas de pressão e barreiras', () => {
   function cubeOnPlate(sim: Simulation) {
     const cube = sim.objects.find((o) => o.def.kind === 'denso')!;
     const plate = sim.plates[0]!;
-    cube.body.position.set(plate.def.center[0], plate.def.center[1] + 1.05, plate.def.center[2]);
+    cube.body.position.set(plate.def.center[0], plate.def.center[1] + 0.55, plate.def.center[2]);
     return { cube, plate, gate: sim.gates[0]! };
   }
 
@@ -132,6 +132,23 @@ describe('placas de pressão e barreiras', () => {
     expect(sim.gates[0]!.open).toBe(false);
   });
 
+  it('o pico de força de uma queda não abre a barreira: a força precisa durar 0,5 s', () => {
+    const sim = new Simulation(orientacao);
+    sim.view.yaw = 0;
+    sim.view.pitch = 0;
+    sim.aimGravity(); // a sonda cai 11 m e bate na placa da parede norte
+    let peak = 0;
+    let opened = false;
+    runUntil(sim, 3, IDLE, (s) => {
+      peak = Math.max(peak, s.plates[0]!.force);
+      opened ||= s.gates[0]!.open;
+      return false;
+    });
+    expect(peak).toBeGreaterThan(1500); // o impacto é real…
+    expect(opened).toBe(false); // …mas curto demais para ativar a placa
+    expect(sim.plates[0]!.force).toBeCloseTo(PLAYER.mass * EARTH_GRAVITY, -1);
+  });
+
   it('barreira fechada bloqueia; aberta deixa passar', () => {
     const sim = new Simulation(leveza);
     const walk = { move: { x: 0, y: 1 }, jump: false };
@@ -141,7 +158,7 @@ describe('placas de pressão e barreiras', () => {
 
     cubeOnPlate(sim);
     sim.setIntensity('pesada');
-    run(sim, 0.5);
+    run(sim, 1);
     expect(sim.gates[0]!.open).toBe(true);
     run(sim, 2, walk);
     expect(sim.player.position.z).toBeLessThan(-29);
@@ -151,7 +168,7 @@ describe('placas de pressão e barreiras', () => {
     const sim = new Simulation(leveza);
     const { cube } = cubeOnPlate(sim);
     sim.setIntensity('pesada');
-    run(sim, 0.5);
+    run(sim, 1);
     sim.player.teleport({ x: -3, y: 3.75, z: -28.5 });
     cube.body.position.set(-4, 3.75, -18); // tira o cubo da placa
     run(sim, 0.3);
@@ -174,7 +191,7 @@ describe('placas de pressão e barreiras', () => {
     sim.view.pitch = 0;
     sim.aimGravity();
     sim.setIntensity('pesada');
-    run(sim, 1.5);
+    run(sim, 2.5);
     expect(plate.force).toBeGreaterThan(1900);
     expect(sim.gates[0]!.open).toBe(true);
   });
