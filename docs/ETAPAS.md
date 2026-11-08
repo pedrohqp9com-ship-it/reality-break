@@ -7,7 +7,8 @@ desafios) e o histórico registrado em commits.
 ## ✅ Etapa 1 — Protótipo jogável (atual)
 
 Commits no histórico: *etapa 1* (simulação), *etapa 2* (renderização, controles, interface) e
-*etapa 3* (testes ponta a ponta, CI e documentação).
+*etapa 3* (testes ponta a ponta, CI e documentação). Feitos originalmente na pasta `reality-break/`
+do repositório `voz-universal` e trazidos para este repositório com o histórico preservado.
 
 - Movimento, pulo e câmera em terceira pessoa que gira com a gravidade.
 - Gravidade: intensidade (Leve/Normal/Pesada), inversão e apontar para 6 eixos.

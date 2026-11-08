@@ -1,5 +1,7 @@
 # REALITY BREAK
 
+Jogo 3D de aventura onde você controla a gravidade e transforma as leis da realidade.
+
 **Aventura 3D no navegador em que você altera as leis da física.**
 
 Você controla uma sonda esférica num complexo de testes futurista. Para avançar, muda a
@@ -56,7 +58,6 @@ placas que exigem força **sustentada por 0,5 s** (o pico de força de uma queda
 Requisitos: Node.js 20.19+ (recomendado 22).
 
 ```bash
-cd reality-break
 npm install
 npm run dev          # http://localhost:5173
 npm run dev:host     # idem, acessível pelo celular na mesma rede Wi-Fi
@@ -74,15 +75,16 @@ npm run test:e2e     # Playwright no build: 14 cenários em PC + Android (paisag
 npm run check        # typecheck + lint + test + build
 ```
 
-No GitHub, `.github/workflows/reality-break.yml` roda tudo isso a cada mudança na pasta.
+No GitHub, `.github/workflows/ci.yml` roda tudo isso a cada push e pull request.
 
 ## Publicar
 
 Resumo — detalhes, inclusive como publicar **só pelo celular**, em [docs/PUBLICAR.md](docs/PUBLICAR.md):
 
-- **Vercel** (recomendado): novo projeto apontando para este repositório com
-  *Root Directory* = `reality-break`. O `vercel.json` desta pasta já configura o resto.
-- **Netlify / Cloudflare Pages**: diretório base `reality-break`, build `npm run build`, saída `dist`.
+- **Vercel** (recomendado): importe este repositório; o `vercel.json` da raiz já configura
+  instalação (`npm ci`), build (`npm run build`) e saída (`dist`). Não é preciso mudar nada no painel.
+- **Netlify / Cloudflare Pages**: build `npm run build`, saída `dist`.
+- **GitHub Pages**: possível, mas ainda sem workflow neste repositório.
 - **itch.io**: `npm run build`, compacte o **conteúdo** de `dist/` em um .zip e envie como jogo HTML.
 
 ## Desempenho
@@ -112,6 +114,12 @@ docs/           # etapas, arquitetura, publicação
 
 Mais detalhes em [docs/ARQUITETURA.md](docs/ARQUITETURA.md) e o plano das próximas etapas em
 [docs/ETAPAS.md](docs/ETAPAS.md).
+
+## Origem
+
+O jogo foi criado na pasta `reality-break/` do repositório `voz-universal` (PR #3) e trazido para
+cá com o histórico das etapas (`git subtree split`). Daqui em diante, este repositório é o lugar
+do jogo.
 
 ## Créditos e licenças de terceiros
 
