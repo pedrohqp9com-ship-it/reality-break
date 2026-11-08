@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Fundo inteiro (serve também como ícone "maskable": o desenho fica no centro seguro). -->
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="58%" r="60%">
+      <stop offset="0" stop-color="#173a5c"/>
+      <stop offset="1" stop-color="#05070f"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <g stroke="#38f2ff" stroke-opacity="0.18" stroke-width="2">
+    <path d="M0 384h512M0 432h512M0 480h512M128 512L208 352M384 512L304 352M256 512V352"/>
+  </g>
+  <circle cx="256" cy="282" r="86" fill="#2a3550" stroke="#38f2ff" stroke-width="14"/>
+  <ellipse cx="256" cy="282" rx="138" ry="36" fill="none" stroke="#ff3fd1" stroke-width="14"/>
+  <ellipse cx="236" cy="262" rx="30" ry="12" fill="#eaffff"/>
+  <path d="M256 104v72M220 140l36 36 36-36" fill="none" stroke="#38f2ff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

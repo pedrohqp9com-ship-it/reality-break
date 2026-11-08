@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="description" content="REALITY BREAK — aventura 3D no navegador em que você altera as leis da física." />
+    <meta name="theme-color" content="#05070f" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>REALITY BREAK</title>
+  </head>
+  <body>
+    <div id="app" data-state="menu">
+      <canvas id="scene" aria-label="Cena 3D do jogo"></canvas>
+    </div>
+    <noscript>
+      <p style="padding: 1rem; font-family: sans-serif; color: #fff">
+        REALITY BREAK precisa de JavaScript ativado para funcionar.
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
