@@ -190,3 +190,94 @@ test.describe('Android: toque', () => {
     }
   });
 });
+
+test.describe('tela horizontal', () => {
+  test.skip(({ isMobile }) => !isMobile, 'somente em celular');
+
+  test('em pé, um aviso pede para girar; deitado, o aviso some', async ({ page }) => {
+    const size = page.viewportSize()!;
+    await page.setViewportSize({ width: size.height, height: size.width });
+    await openGame(page);
+    await expect(page.getByTestId('rotate-overlay')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Gire o aparelho' })).toBeVisible();
+    await page.setViewportSize(size);
+    await expect(page.getByTestId('rotate-overlay')).toBeHidden();
+  });
+
+  test('girar para a vertical no meio do jogo pausa; ao voltar, dá para continuar', async ({ page }) => {
+    const size = page.viewportSize()!;
+    await openGame(page);
+    await startLevel(page);
+    await page.setViewportSize({ width: size.height, height: size.width });
+    await expect(page.getByTestId('rotate-overlay')).toBeVisible();
+    expect((await gameState(page)).state).toBe('paused');
+    const t = (await gameState(page)).time;
+    await page.setViewportSize(size);
+    await expect(page.getByTestId('rotate-overlay')).toBeHidden();
+    await expect(page.getByTestId('screen-pause')).toBeVisible();
+    expect((await gameState(page)).time).toBe(t);
+    await page.getByTestId('resume').tap();
+    await expect.poll(async () => (await gameState(page)).time).toBeGreaterThan(t);
+  });
+
+  test('menus e briefing cabem na tela deitada (botões visíveis sem rolar)', async ({ page }) => {
+    await seedProgress(page, ['leveza', 'inversao']);
+    await openGame(page);
+    const viewport = page.viewportSize()!;
+    const fits = async (screen: string) => {
+      const buttons = page.getByTestId(`screen-${screen}`).locator('button');
+      const count = await buttons.count();
+      expect(count, screen).toBeGreaterThan(0);
+      for (let i = 0; i < count; i++) {
+        const box = (await buttons.nth(i).boundingBox())!;
+        expect(box.y + box.height, `${screen}: botão ${i}`).toBeLessThanOrEqual(viewport.height);
+        expect(box.y, `${screen}: botão ${i}`).toBeGreaterThanOrEqual(0);
+      }
+    };
+    await fits('menu');
+    await page.getByTestId('levels').tap();
+    await fits('levels');
+    await page.getByTestId('level-orientacao').tap();
+    await fits('briefing');
+    await page.getByTestId('begin').tap();
+    await expect.poll(async () => (await gameState(page)).state).toBe('playing');
+    await page.getByTestId('pause-button').tap();
+    await fits('pause');
+  });
+
+  test('a interface cabe na tela deitada, sem cortes', async ({ page }) => {
+    await openGame(page);
+    await startLevel(page);
+    const viewport = page.viewportSize()!;
+    const boxes = page.locator('.hud-icon-btn:visible, .hud-pause, .touch-btn, .hud-gravity, .hud-title');
+    const count = await boxes.count();
+    expect(count).toBeGreaterThan(5);
+    for (let i = 0; i < count; i++) {
+      const box = (await boxes.nth(i).boundingBox())!;
+      expect(box.x, `elemento ${i}`).toBeGreaterThanOrEqual(0);
+      expect(box.y, `elemento ${i}`).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width, `elemento ${i}`).toBeLessThanOrEqual(viewport.width);
+      expect(box.y + box.height, `elemento ${i}`).toBeLessThanOrEqual(viewport.height);
+    }
+  });
+});
+
+test.describe('tela cheia', () => {
+  test('entra e sai da tela cheia (botão do HUD no celular, menu de pausa no PC)', async ({ page, isMobile }) => {
+    await openGame(page);
+    await startLevel(page);
+    test.skip(!(await page.evaluate(() => document.fullscreenEnabled)), 'navegador sem tela cheia');
+    if (isMobile) {
+      await page.getByTestId('fullscreen-button').tap();
+    } else {
+      // No PC o cursor fica capturado durante o jogo: a tela cheia fica no menu de pausa.
+      await pauseGame(page, false);
+      await page.getByTestId('pause-fullscreen').click();
+      await expect(page.getByTestId('pause-fullscreen')).toHaveText('Sair da tela cheia');
+    }
+    await expect.poll(async () => (await gameState(page)).fullscreen).toBe(true);
+    await expect(page.getByTestId('fullscreen-button')).toHaveAttribute('aria-pressed', 'true');
+    await page.evaluate(() => document.exitFullscreen());
+    await expect.poll(async () => (await gameState(page)).fullscreen).toBe(false);
+  });
+});

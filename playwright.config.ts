@@ -25,10 +25,10 @@ export default defineConfig({
       name: 'android',
       use: { ...devices['Pixel 7'], viewport: { width: 915, height: 412 } },
     },
-    // Android de entrada, em pé (360 px de largura).
+    // Android de entrada, deitado (tela pequena: 640 × 360).
     {
       name: 'android-small',
-      use: { ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 } },
+      use: { ...devices['Galaxy S9+'], viewport: { width: 640, height: 360 } },
     },
   ],
   webServer: {

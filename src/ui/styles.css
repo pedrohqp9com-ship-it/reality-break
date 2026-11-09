@@ -473,6 +473,41 @@ thead th {
   pointer-events: auto;
 }
 
+.hud-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: rgba(9, 14, 30, 0.65);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+/* Ícone de tela cheia: quatro cantos; "para dentro" quando já está em tela cheia. */
+.fs-icon {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  background:
+    linear-gradient(var(--text), var(--text)) 0 0 / 7px 3px,
+    linear-gradient(var(--text), var(--text)) 0 0 / 3px 7px,
+    linear-gradient(var(--text), var(--text)) 100% 0 / 7px 3px,
+    linear-gradient(var(--text), var(--text)) 100% 0 / 3px 7px,
+    linear-gradient(var(--text), var(--text)) 0 100% / 7px 3px,
+    linear-gradient(var(--text), var(--text)) 0 100% / 3px 7px,
+    linear-gradient(var(--text), var(--text)) 100% 100% / 7px 3px,
+    linear-gradient(var(--text), var(--text)) 100% 100% / 3px 7px;
+  background-repeat: no-repeat;
+}
+
+.hud-fullscreen[aria-pressed='true'] .fs-icon {
+  transform: scale(0.7);
+  opacity: 0.8;
+}
+
 .hud-pause span {
   width: 5px;
   height: 18px;
@@ -877,5 +912,217 @@ thead th {
   .hud-plate-head {
     flex-direction: column;
     gap: 2px;
+  }
+}
+
+/* ------------------------------------------------ aviso de girar o aparelho */
+
+.rotate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: calc(24px + var(--safe-top)) calc(24px + var(--safe-right)) calc(24px + var(--safe-bottom))
+    calc(24px + var(--safe-left));
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(56, 242, 255, 0.18), transparent 60%),
+    radial-gradient(ellipse at 50% 100%, rgba(255, 63, 209, 0.2), transparent 55%), var(--bg);
+  text-align: center;
+}
+
+.rotate-overlay h2 {
+  margin: 8px 0 0;
+}
+
+.rotate-overlay p {
+  max-width: 300px;
+  margin: 0 0 10px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.rotate-overlay .btn {
+  min-width: 240px;
+}
+
+.rotate-phone {
+  position: relative;
+  width: 64px;
+  height: 112px;
+  border: 3px solid var(--cyan);
+  border-radius: 14px;
+  box-shadow: 0 0 24px rgba(56, 242, 255, 0.45);
+  animation: rotate-phone 2.4s ease-in-out infinite;
+}
+
+.rotate-phone-screen {
+  position: absolute;
+  inset: 8px 6px 14px;
+  border-radius: 4px;
+  background: linear-gradient(140deg, rgba(56, 242, 255, 0.35), rgba(255, 63, 209, 0.35));
+}
+
+.rotate-phone::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 14px;
+  height: 3px;
+  margin-left: -7px;
+  border-radius: 2px;
+  background: var(--cyan);
+}
+
+@keyframes rotate-phone {
+  0%, 20% {
+    transform: rotate(0deg);
+  }
+  55%, 85% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rotate-phone {
+    animation: none;
+    transform: rotate(-90deg);
+  }
+}
+
+/* ------------------------------------- celular deitado (telas baixas: ≤ 500 px) */
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .screens {
+    padding: calc(8px + var(--safe-top)) calc(12px + var(--safe-right)) calc(8px + var(--safe-bottom))
+      calc(12px + var(--safe-left));
+  }
+
+  .panel {
+    width: min(820px, 100%);
+    max-height: calc(100dvh - 16px - var(--safe-top) - var(--safe-bottom));
+    overflow-y: auto;
+    padding: 14px 20px;
+    border-radius: 14px;
+  }
+
+  h2 {
+    font-size: 1.35rem;
+    margin-bottom: 2px;
+  }
+
+  .tagline {
+    margin: 2px 0 8px;
+    font-size: 0.92rem;
+  }
+
+  .eyebrow {
+    margin-bottom: 2px;
+    font-size: 0.72rem;
+  }
+
+  .btn {
+    min-height: 44px;
+    padding: 8px 14px;
+    font-size: 0.92rem;
+  }
+
+  /* Botões em grade de duas colunas: cabem sem rolar. */
+  .menu-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    max-width: 560px;
+    margin-top: 10px;
+  }
+
+  .menu-buttons > .btn-primary:first-child:nth-last-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  /* Menu principal: logotipo à esquerda, botões à direita. */
+  .panel-menu {
+    width: min(900px, 100%);
+  }
+
+  .menu {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    grid-template-areas:
+      'logo buttons'
+      'tagline buttons'
+      'foot buttons';
+    align-items: center;
+    column-gap: 28px;
+    text-align: left;
+  }
+
+  .menu .logo {
+    grid-area: logo;
+    justify-content: flex-start;
+    font-size: clamp(2.2rem, 13vh, 3.6rem);
+  }
+
+  .menu .tagline {
+    grid-area: tagline;
+    margin: 8px 0 0;
+  }
+
+  .menu .menu-buttons {
+    grid-area: buttons;
+    grid-template-columns: 1fr;
+    margin: 0;
+  }
+
+  .menu .menu-foot {
+    grid-area: foot;
+    margin-top: 8px;
+  }
+
+  .briefing-list li {
+    margin: 3px 0;
+    font-size: 0.9rem;
+    line-height: 1.35;
+  }
+
+  .briefing-control {
+    margin-top: 8px;
+    padding: 6px 10px;
+    font-size: 0.88rem;
+  }
+
+  .briefing-objective {
+    margin-top: 6px;
+    font-size: 0.88rem;
+  }
+
+  .level-card {
+    min-height: 0;
+    padding: 10px 12px;
+  }
+
+  .level-card-title {
+    font-size: 1.1rem;
+  }
+
+  .setting {
+    margin: 6px 0;
+  }
+
+  .result-time {
+    margin: 0;
+    font-size: 2.2rem;
+  }
+
+  th,
+  td {
+    padding: 4px 8px;
   }
 }

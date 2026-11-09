@@ -14,6 +14,8 @@ declare global {
 export type DebugState = {
   state: string;
   screen: string | null;
+  portraitBlocked: boolean;
+  fullscreen: boolean;
   mode: 'keyboard' | 'touch';
   level: string | null;
   player: { x: number; y: number; z: number } | null;

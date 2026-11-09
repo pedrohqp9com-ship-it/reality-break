@@ -103,7 +103,11 @@ export class Screens {
               actionButton('Desafios', () => this.levelSelect(progress), { testId: 'levels' }),
               actionButton('Controles', () => this.controls(() => this.mainMenu(progress, nextId))),
               actionButton('Ajustes', () => this.callbacks.openSettings(() => this.mainMenu(progress, nextId))),
-              this.canFullscreen ? actionButton('Tela cheia', () => this.callbacks.fullscreen()) : null,
+              this.canFullscreen
+                ? actionButton(document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia', () =>
+                    this.callbacks.fullscreen(),
+                  )
+                : null,
             ].filter((b): b is HTMLButtonElement => !!b),
           }),
           el('p', {
@@ -190,10 +194,17 @@ export class Screens {
             children: [
               actionButton('Continuar', () => this.callbacks.resume(), { primary: true, testId: 'resume' }),
               actionButton('Reiniciar desafio', () => this.callbacks.restart(), { testId: 'restart' }),
+              this.canFullscreen
+                ? actionButton(
+                    document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia',
+                    () => this.callbacks.fullscreen(),
+                    { testId: 'pause-fullscreen' },
+                  )
+                : null,
               actionButton('Controles', () => this.controls(() => this.pause())),
               actionButton('Ajustes', () => this.callbacks.openSettings(() => this.pause())),
               actionButton('Menu principal', () => this.callbacks.menu(), { testId: 'to-menu' }),
-            ],
+            ].filter((b): b is HTMLButtonElement => !!b),
           }),
         ],
       }),

@@ -25,6 +25,7 @@ interface PlateRow {
 export class Hud {
   readonly root: HTMLDivElement;
   readonly pauseButton: HTMLButtonElement;
+  private readonly fullscreenButton: HTMLButtonElement;
   private readonly title: HTMLDivElement;
   private readonly objective: HTMLDivElement;
   private readonly timer: HTMLDivElement;
@@ -42,7 +43,10 @@ export class Hud {
   private lastHint: string | null = null;
   private lastTimer = '';
 
-  constructor(parent: HTMLElement, onPause: () => void) {
+  constructor(
+    parent: HTMLElement,
+    actions: { onPause: () => void; onFullscreen: (() => void) | null },
+  ) {
     this.title = el('div', { className: 'hud-title' });
     this.objective = el('div', { className: 'hud-objective' });
     this.timer = el('div', { className: 'hud-timer', attrs: { 'data-testid': 'timer' } });
@@ -51,7 +55,15 @@ export class Hud {
       attrs: { type: 'button', 'aria-label': 'Pausar', 'data-testid': 'pause-button' },
       children: [el('span'), el('span')],
     });
-    this.pauseButton.addEventListener('click', onPause);
+    this.pauseButton.addEventListener('click', actions.onPause);
+    this.fullscreenButton = el('button', {
+      className: 'hud-icon-btn hud-fullscreen',
+      attrs: { type: 'button', 'aria-label': 'Tela cheia', 'aria-pressed': 'false', 'data-testid': 'fullscreen-button' },
+      children: [el('span', { className: 'fs-icon', attrs: { 'aria-hidden': 'true' } })],
+    });
+    // Sem a API de tela cheia (ex.: iPhone), o botão não aparece.
+    this.fullscreenButton.hidden = !actions.onFullscreen;
+    if (actions.onFullscreen) this.fullscreenButton.addEventListener('click', actions.onFullscreen);
     this.arrow = el('div', { className: 'hud-arrow', attrs: { 'aria-hidden': 'true' } });
     this.axis = el('div', { className: 'hud-axis' });
     this.level = el('div', { className: 'hud-level', attrs: { 'data-testid': 'gravity-level' } });
@@ -82,7 +94,7 @@ export class Hud {
         el('div', {
           className: 'hud-col hud-right',
           children: [
-            el('div', { className: 'hud-row', children: [this.timer, this.pauseButton] }),
+            el('div', { className: 'hud-row', children: [this.timer, this.fullscreenButton, this.pauseButton] }),
             this.plates,
             this.fps,
           ],
@@ -131,6 +143,11 @@ export class Hud {
 
   setVisible(visible: boolean): void {
     this.root.hidden = !visible;
+  }
+
+  setFullscreen(active: boolean): void {
+    this.fullscreenButton.setAttribute('aria-pressed', String(active));
+    this.fullscreenButton.setAttribute('aria-label', active ? 'Sair da tela cheia' : 'Tela cheia');
   }
 
   showToast(text: string, seconds = 1.8): void {

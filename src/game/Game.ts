@@ -20,7 +20,10 @@ import {
   type Settings,
 } from '../state/storage';
 import { gravityArrow, gravityToast } from '../ui/format';
+import { enterFullscreen, fullscreenAvailable, isFullscreen, toggleFullscreen } from '../ui/fullscreen';
 import { Hud } from '../ui/Hud';
+import { detectTouchDevice, OrientationGuard } from '../ui/orientation';
+import { RotateOverlay } from '../ui/RotateOverlay';
 import { Screens } from '../ui/Screens';
 
 export type GameState = 'menu' | 'briefing' | 'playing' | 'paused' | 'complete';
@@ -42,6 +45,9 @@ export class Game {
   private readonly touch: TouchControls;
   private readonly hud: Hud;
   private readonly screens: Screens;
+  private readonly rotateOverlay: RotateOverlay;
+  private readonly orientation: OrientationGuard;
+  private readonly touchDevice: boolean;
   private readonly store = new SaveStore(browserStorage());
   private readonly stepper = new FixedStepper(FIXED_DT, MAX_STEPS_PER_FRAME);
   private readonly textures: SharedTextures;
@@ -53,7 +59,8 @@ export class Game {
   private pausedAt = 0;
 
   constructor(private readonly root: HTMLElement, canvas: HTMLCanvasElement) {
-    const touchFirst = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+    this.touchDevice = detectTouchDevice();
+    const touchFirst = this.touchDevice;
     const settings = this.store.data.settings;
     this.renderer = new Renderer(canvas, settings.quality, touchFirst);
     this.rig = new CameraRig(canvas.clientWidth / Math.max(1, canvas.clientHeight));
@@ -67,7 +74,11 @@ export class Game {
     };
     this.input.onZoom = (delta) => this.rig.zoom(delta);
 
-    this.hud = new Hud(root, () => this.pause());
+    const canFullscreen = fullscreenAvailable();
+    this.hud = new Hud(root, {
+      onPause: () => this.pause(),
+      onFullscreen: canFullscreen ? () => void toggleFullscreen() : null,
+    });
     this.touch = new TouchControls(root, this.input);
     this.screens = new Screens(
       root,
@@ -83,10 +94,23 @@ export class Game {
         },
         settingsChanged: (s) => this.saveSettings(s),
         openSettings: (back) => this.screens.settings(this.store.data.settings, back),
-        fullscreen: () => this.enterFullscreen(),
+        fullscreen: () => void toggleFullscreen(),
       },
-      !!document.fullscreenEnabled,
+      canFullscreen,
     );
+    this.rotateOverlay = new RotateOverlay(root, canFullscreen, () => void enterFullscreen());
+    this.orientation = new OrientationGuard(
+      () => this.touchDevice || this.input.mode === 'touch',
+      (blocked) => this.onOrientation(blocked),
+    );
+    this.rotateOverlay.setVisible(this.orientation.blocked);
+    document.addEventListener('fullscreenchange', () => {
+      this.hud.setFullscreen(isFullscreen());
+      // Atualiza o texto "Tela cheia" / "Sair da tela cheia" das telas abertas.
+      if (this.screens.current === 'menu') this.toMenu();
+      else if (this.screens.current === 'pause') this.screens.pause();
+      this.resize();
+    });
 
     window.addEventListener('resize', () => this.resize());
     document.addEventListener('visibilitychange', () => {
@@ -155,7 +179,7 @@ export class Game {
   }
 
   begin(): void {
-    if (!this.sim) return;
+    if (!this.sim || this.orientation.blocked) return;
     this.screens.hide();
     this.setState('playing');
     this.stepper.reset();
@@ -171,7 +195,7 @@ export class Game {
   }
 
   resume(): void {
-    if (this.state !== 'paused') return;
+    if (this.state !== 'paused' || this.orientation.blocked) return;
     this.screens.hide();
     this.setState('playing');
     this.stepper.reset();
@@ -202,20 +226,20 @@ export class Game {
     this.screens.complete(level, time, progress.bestTimes[level.id] ?? time, record, !!nextLevel(level.id));
   }
 
-  private enterFullscreen(): void {
-    const element = document.documentElement;
-    element
-      .requestFullscreen?.({ navigationUI: 'hide' })
-      .then(() => {
-        const orientation = screen.orientation as ScreenOrientation & {
-          lock?: (o: string) => Promise<void>;
-        };
-        return orientation?.lock?.('landscape');
-      })
-      .catch(() => undefined);
+  /** Celular em pé: mostra o aviso para girar e pausa o jogo. */
+  private onOrientation(blocked: boolean): void {
+    this.rotateOverlay.setVisible(blocked);
+    if (blocked) this.pause();
+    this.root.dataset.portrait = String(blocked);
+  }
+
+  /** Se o celular está em pé (o jogo fica bloqueado até girar). */
+  get portraitBlocked(): boolean {
+    return this.orientation.blocked;
   }
 
   private onModeChange(mode: InputMode): void {
+    this.orientation.check();
     this.hud.setMode(mode);
     this.touch.setVisible(this.state === 'playing' && mode === 'touch');
     if (mode === 'touch') this.input.releasePointerLock();
@@ -368,6 +392,8 @@ export class Game {
     return {
       state: this.state,
       screen: this.screens.current,
+      portraitBlocked: this.orientation.blocked,
+      fullscreen: isFullscreen(),
       mode: this.input.mode,
       level: sim?.level.id ?? null,
       player: p ? { x: p.x, y: p.y, z: p.z } : null,
