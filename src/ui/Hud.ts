@@ -8,12 +8,14 @@ import { el } from './dom';
 import { AXIS_NAMES, formatGravity, formatNewtons, formatTime, type GravityArrow } from './format';
 
 const KEY_HELP: Readonly<Record<string, string>> = {
-  base: 'WASD mover · Mouse olhar · Espaço pular',
+  base: 'WASD mover · Shift correr · Mouse olhar · Espaço pular',
   intensity: '1 Leve · 2 Normal · 3 Pesada',
   flip: 'F inverter',
   aim: 'G/clique apontar',
   tail: 'R reiniciar · Esc pausa',
 };
+
+const HINT_SECONDS = 9;
 
 interface PlateRow {
   readonly fill: HTMLDivElement;
@@ -41,6 +43,8 @@ export class Hud {
   private plateRows: PlateRow[] = [];
   private toastTimer = 0;
   private lastHint: string | null = null;
+  /** Tempo restante (s) da dica atual na tela. */
+  private hintTimer = 0;
   private lastTimer = '';
 
   constructor(
@@ -204,9 +208,13 @@ export class Hud {
     const hint = data.hint ? formatControlText(data.hint, data.mode) : null;
     if (hint !== this.lastHint) {
       this.hint.textContent = hint ?? '';
-      this.hint.classList.toggle('visible', !!hint);
       this.lastHint = hint;
+      this.hintTimer = hint ? HINT_SECONDS : 0;
+    } else if (this.hintTimer > 0) {
+      this.hintTimer -= dt;
     }
+    // A dica some depois de alguns segundos e volta ao entrar em outra zona.
+    this.hint.classList.toggle('visible', !!hint && this.hintTimer > 0);
 
     if (this.toastTimer > 0) {
       this.toastTimer -= dt;

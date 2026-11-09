@@ -38,6 +38,8 @@ export interface SimInput {
   readonly move: MoveInput;
   /** Pulo pressionado desde o último passo. */
   readonly jump: boolean;
+  /** Correr (segurando Shift ou com o botão CORRER ligado). */
+  readonly sprint?: boolean;
 }
 
 export type SimEvent =
@@ -226,7 +228,7 @@ export class Simulation {
     if (this.completed) return;
     const up = this.up(tmpUp);
     this.frame.moveBasis(this.view.yaw, tmpForward, tmpRight);
-    if (this.player.preStep(dt, input.move, input.jump, tmpForward, tmpRight, up)) {
+    if (this.player.preStep(dt, input.move, input.jump, tmpForward, tmpRight, up, !!input.sprint)) {
       this.events.push({ type: 'jump' });
     }
 

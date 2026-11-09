@@ -125,6 +125,16 @@ test.describe('PC: teclado', () => {
     expect((await gameState(page)).gates[0]!.open).toBe(false);
   });
 
+  test('Shift faz correr mais rápido', async ({ page }) => {
+    await openGame(page);
+    await startLevel(page);
+    await page.keyboard.down('ShiftLeft');
+    await holdKey(page, 'KeyW', 0.8);
+    await page.keyboard.up('ShiftLeft');
+    // Andando, o limite é 6 m/s; correndo, 9,5 m/s.
+    await expect.poll(async () => (await gameState(page)).speed).toBeLessThan(10);
+  });
+
   test('Esc pausa (o tempo para) e continua', async ({ page }) => {
     await openGame(page);
     await startLevel(page);
@@ -144,7 +154,9 @@ test.describe('Android: toque', () => {
     await openGame(page);
     await startLevel(page);
     await expect(page.getByTestId('touch-controls')).toBeVisible();
+    await expect(page.getByTestId('joystick')).toBeVisible(); // direcional em repouso, à vista
     await expect(page.getByRole('button', { name: 'Pular' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Correr/ })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Gravidade leve' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Inverter a gravidade' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Apontar/ })).toHaveCount(0);
@@ -175,6 +187,54 @@ test.describe('Android: toque', () => {
     const after = (await gameState(page)).player!;
     expect(Math.hypot(after.x - before.x, after.z - before.z)).toBeGreaterThan(2);
     expect(after.z).toBeLessThan(before.z); // arrastar para cima = para a frente
+  });
+
+  test('CORRER liga a corrida: a sonda passa de 6 m/s', async ({ page }) => {
+    await openGame(page);
+    await startLevel(page);
+    const run = page.getByRole('button', { name: /Correr/ });
+    await run.tap();
+    await expect(run).toHaveAttribute('aria-pressed', 'true');
+    expect((await gameState(page)).sprint).toBe(true);
+    const zone = page.locator('.touch-zone-move');
+    const box = (await zone.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height * 0.6;
+    const init = { pointerId: 9, pointerType: 'touch', isPrimary: true, bubbles: true };
+    await zone.dispatchEvent('pointerdown', { ...init, clientX: x, clientY: y });
+    await page.locator('.touch-layer').dispatchEvent('pointermove', { ...init, clientX: x, clientY: y - 70 });
+    await expect.poll(async () => (await gameState(page)).speed, { timeout: 30_000 }).toBeGreaterThan(8.5);
+    await page.locator('.touch-layer').dispatchEvent('pointerup', { ...init, clientX: x, clientY: y - 70 });
+    await run.tap();
+    await expect(run).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('botões e painéis não se sobrepõem (desafio com todos os poderes)', async ({ page }) => {
+    await seedProgress(page, ['leveza', 'inversao']);
+    await openGame(page);
+    await startLevel(page, 'level-orientacao');
+    const selectors = ['.touch-btn', '.hud-icon-btn', '.hud-pause', '.hud-plates', '.hud-gravity', '.hud-title'];
+    const boxes: { name: string; x: number; y: number; w: number; h: number }[] = [];
+    for (const selector of selectors) {
+      const items = page.locator(selector);
+      for (let i = 0; i < (await items.count()); i++) {
+        if (!(await items.nth(i).isVisible())) continue;
+        const b = (await items.nth(i).boundingBox())!;
+        const name = `${selector}#${i} ${(await items.nth(i).textContent())?.trim().slice(0, 12)}`;
+        boxes.push({ name, x: b.x, y: b.y, w: b.width, h: b.height });
+      }
+    }
+    expect(boxes.length).toBeGreaterThan(8);
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]!;
+        const b = boxes[j]!;
+        const overlap = a.x < b.x + b.w - 1 && b.x < a.x + a.w - 1 && a.y < b.y + b.h - 1 && b.y < a.y + a.h - 1;
+        // Os botões de intensidade ficam juntos de propósito (um grupo).
+        const sameGroup = a.name.includes('touch-btn') && b.name.includes('touch-btn') && /LEVE|NORMAL|PESADA/.test(a.name) && /LEVE|NORMAL|PESADA/.test(b.name);
+        if (!sameGroup) expect(overlap, `${a.name} × ${b.name}`).toBe(false);
+      }
+    }
   });
 
   test('alvos de toque têm pelo menos 44 px', async ({ page }) => {

@@ -9,7 +9,9 @@ export type GameAction =
   | 'flip'
   | 'aim'
   | 'restart'
-  | 'pause';
+  | 'pause'
+  /** Liga/desliga a corrida (botão de toque; no teclado, Shift é segurado). */
+  | 'sprint';
 
 export const KEY_ACTIONS: Readonly<Record<string, GameAction>> = {
   Space: 'jump',
@@ -40,6 +42,9 @@ const MOVE_KEYS: Readonly<Record<string, readonly [number, number]>> = {
 export function isMoveKey(code: string): boolean {
   return code in MOVE_KEYS;
 }
+
+/** Teclas que fazem correr enquanto estão pressionadas. */
+export const SPRINT_KEYS: ReadonlySet<string> = new Set(['ShiftLeft', 'ShiftRight']);
 
 /** Vetor de movimento a partir das teclas pressionadas (diagonal normalizada). */
 export function moveFromKeys(pressed: ReadonlySet<string>): { x: number; y: number } {
@@ -90,6 +95,7 @@ const TOKEN_LABELS: Readonly<Record<InputMode, Readonly<Record<string, string>>>
     INVERTER: 'F (Inverter)',
     APONTAR: 'G ou clique (Apontar)',
     PULAR: 'Espaço',
+    CORRER: 'Shift (Correr)',
   },
   touch: {
     LEVE: 'o botão LEVE',
@@ -98,6 +104,7 @@ const TOKEN_LABELS: Readonly<Record<InputMode, Readonly<Record<string, string>>>
     INVERTER: 'o botão INVERTER',
     APONTAR: 'o botão APONTAR',
     PULAR: 'o botão PULAR',
+    CORRER: 'o botão CORRER',
   },
 };
 

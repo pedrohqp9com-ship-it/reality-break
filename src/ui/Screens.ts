@@ -37,7 +37,8 @@ const POWER_CONTROLS: Readonly<Record<string, Readonly<Record<InputMode, string>
 const CONTROLS_TABLE: readonly [string, string, string][] = [
   ['Mover', 'W A S D ou setas', 'Direcional (lado esquerdo da tela)'],
   ['Olhar', 'Mouse (clique na tela para capturar)', 'Arrastar no lado direito da tela'],
-  ['Pular', 'Espaço', 'PULAR'],
+  ['Pular', 'Espaço', 'PULAR (botão grande, à direita)'],
+  ['Correr', 'Shift (segurar)', 'CORRER (liga e desliga)'],
   ['Gravidade Leve / Normal / Pesada', '1 / 2 / 3', 'LEVE / NORMAL / PESADA'],
   ['Inverter a gravidade (Desafio 2+)', 'F', 'INVERTER'],
   ['Apontar a gravidade (Desafio 3)', 'G ou clique', 'APONTAR'],
@@ -55,6 +56,7 @@ export class Screens {
     parent: HTMLElement,
     private readonly callbacks: ScreenCallbacks,
     private readonly canFullscreen: boolean,
+    private readonly canVibrate = false,
   ) {
     this.root = el('div', { className: 'screens' });
     parent.append(this.root);
@@ -254,6 +256,8 @@ export class Screens {
     invert.checked = current.invertY;
     const fps = el('input', { attrs: { type: 'checkbox', id: 'set-fps' } });
     fps.checked = current.showFps;
+    const vibration = el('input', { attrs: { type: 'checkbox', id: 'set-vibration' } });
+    vibration.checked = current.vibration;
     const quality = el('select', {
       attrs: { id: 'set-quality' },
       children: [
@@ -270,11 +274,12 @@ export class Screens {
         invertY: invert.checked,
         showFps: fps.checked,
         quality: quality.value as QualitySetting,
+        vibration: vibration.checked,
       };
       sensValue.textContent = `${next.sensitivity.toFixed(2)}×`;
       this.callbacks.settingsChanged(next);
     };
-    for (const input of [sensitivity, invert, fps, quality]) input.addEventListener('input', emit);
+    for (const input of [sensitivity, invert, fps, quality, vibration]) input.addEventListener('input', emit);
 
     const row = (label: string, id: string, control: HTMLElement, extra?: HTMLElement) =>
       el('div', {
@@ -291,6 +296,7 @@ export class Screens {
           row('Inverter eixo vertical', 'set-invert', invert),
           row('Qualidade gráfica', 'set-quality', quality),
           row('Mostrar FPS', 'set-fps', fps),
+          this.canVibrate ? row('Vibração', 'set-vibration', vibration) : null,
           el('div', { className: 'menu-buttons', children: [actionButton('Voltar', back, { primary: true })] }),
         ],
       }),

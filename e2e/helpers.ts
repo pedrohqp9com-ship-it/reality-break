@@ -20,6 +20,8 @@ export type DebugState = {
   level: string | null;
   player: { x: number; y: number; z: number } | null;
   grounded: boolean;
+  sprint: boolean;
+  speed: number;
   gravity: { axis: string; level: string } | null;
   plates: { id: string; force: number; active: boolean }[];
   gates: { id: string; open: boolean }[];

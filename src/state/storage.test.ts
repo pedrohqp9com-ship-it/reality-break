@@ -23,7 +23,7 @@ describe('dados salvos', () => {
         progress: { completed: ['leveza', 'hack', 'leveza'], bestTimes: { leveza: 12.5, inversao: -1, x: 3 } },
       }),
     );
-    expect(save.settings).toEqual({ sensitivity: 1, invertY: false, quality: 'auto', showFps: true });
+    expect(save.settings).toEqual({ sensitivity: 1, invertY: false, quality: 'auto', showFps: true, vibration: true });
     expect(save.progress).toEqual({ completed: ['leveza'], bestTimes: { leveza: 12.5 } });
   });
 

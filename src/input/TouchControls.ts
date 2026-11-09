@@ -3,6 +3,7 @@ import type { GameAction } from './actions';
 import type { InputManager } from './InputManager';
 import { joystickVector, knobOffset } from './joystick';
 
+/** Raio útil do direcional (px): arrastar até aqui = velocidade máxima. */
 const JOYSTICK_RADIUS = 56;
 
 function button(label: string, action: GameAction, className: string, aria: string): HTMLButtonElement {
@@ -16,9 +17,13 @@ function button(label: string, action: GameAction, className: string, aria: stri
 }
 
 /**
- * Controles de tela para celular: metade esquerda = direcional que nasce onde o
- * polegar toca; metade direita = arrastar para olhar; botões para pular e para
- * os poderes liberados no desafio atual (poderes bloqueados não aparecem).
+ * Controles de tela para celular deitado:
+ * - metade esquerda: direcional. Fica visível em repouso no canto e "nasce" onde
+ *   o polegar toca;
+ * - metade direita: arrastar gira a câmera;
+ * - canto direito: PULAR (grande) com CORRER, APONTAR e INVERTER em arco ao
+ *   redor, e a intensidade da gravidade logo abaixo do relógio.
+ * Só aparecem os botões dos poderes liberados no desafio atual.
  */
 export class TouchControls {
   readonly root: HTMLDivElement;
@@ -26,7 +31,9 @@ export class TouchControls {
   private readonly lookZone: HTMLDivElement;
   private readonly base: HTMLDivElement;
   private readonly knob: HTMLDivElement;
-  private readonly powerBox: HTMLDivElement;
+  private readonly cluster: HTMLDivElement;
+  private readonly intensityBox: HTMLDivElement;
+  private readonly runButton: HTMLButtonElement;
   private readonly intensityButtons = new Map<GravityLevel, HTMLButtonElement>();
   private movePointer: number | null = null;
   private lookPointer: number | null = null;
@@ -47,15 +54,24 @@ export class TouchControls {
 
     this.base = document.createElement('div');
     this.base.className = 'joystick';
+    this.base.dataset.testid = 'joystick';
     this.knob = document.createElement('div');
     this.knob.className = 'joystick-knob';
     this.base.append(this.knob);
 
-    this.powerBox = document.createElement('div');
-    this.powerBox.className = 'touch-powers';
+    this.cluster = document.createElement('div');
+    this.cluster.className = 'touch-cluster';
+    this.runButton = button('CORRER', 'sprint', 'touch-run', 'Correr (liga e desliga)');
+    this.runButton.setAttribute('aria-pressed', 'false');
     const jump = button('PULAR', 'jump', 'touch-jump', 'Pular');
+    this.cluster.append(this.runButton, jump);
 
-    this.root.append(this.moveZone, this.lookZone, this.base, this.powerBox, jump);
+    this.intensityBox = document.createElement('div');
+    this.intensityBox.className = 'touch-intensity';
+    this.intensityBox.setAttribute('role', 'group');
+    this.intensityBox.setAttribute('aria-label', 'Intensidade da gravidade');
+
+    this.root.append(this.moveZone, this.lookZone, this.base, this.cluster, this.intensityBox);
     parent.append(this.root);
 
     this.moveZone.addEventListener('pointerdown', (e) => this.startMove(e));
@@ -74,17 +90,25 @@ export class TouchControls {
     this.root.addEventListener('pointerup', release);
     this.root.addEventListener('pointercancel', release);
     this.root.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.rest();
   }
 
   /** Mostra só os botões dos poderes liberados. */
   setPowers(powers: readonly Power[]): void {
-    this.powerBox.replaceChildren();
+    this.cluster.querySelectorAll('.touch-power').forEach((el) => el.remove());
+    if (powers.includes('aim')) {
+      this.cluster.append(
+        button('APONTAR', 'aim', 'touch-power touch-aim', 'Apontar a gravidade para onde a câmera olha'),
+      );
+    }
+    if (powers.includes('flip')) {
+      this.cluster.append(button('INVERTER', 'flip', 'touch-power touch-flip', 'Inverter a gravidade'));
+    }
+
+    this.intensityBox.replaceChildren();
     this.intensityButtons.clear();
+    this.intensityBox.hidden = !powers.includes('intensity');
     if (powers.includes('intensity')) {
-      const group = document.createElement('div');
-      group.className = 'touch-intensity';
-      group.setAttribute('role', 'group');
-      group.setAttribute('aria-label', 'Intensidade da gravidade');
       for (const [level, label] of [
         ['leve', 'LEVE'],
         ['normal', 'NORMAL'],
@@ -92,17 +116,8 @@ export class TouchControls {
       ] as const) {
         const el = button(label, level, 'touch-level', `Gravidade ${label.toLowerCase()}`);
         this.intensityButtons.set(level, el);
-        group.append(el);
+        this.intensityBox.append(el);
       }
-      this.powerBox.append(group);
-    }
-    if (powers.includes('flip')) {
-      this.powerBox.append(button('INVERTER', 'flip', 'touch-power', 'Inverter a gravidade'));
-    }
-    if (powers.includes('aim')) {
-      this.powerBox.append(
-        button('APONTAR', 'aim', 'touch-power', 'Apontar a gravidade para onde a câmera olha'),
-      );
     }
   }
 
@@ -113,9 +128,21 @@ export class TouchControls {
     }
   }
 
+  setSprint(active: boolean): void {
+    this.runButton.classList.toggle('active', active);
+    this.runButton.setAttribute('aria-pressed', String(active));
+  }
+
   setVisible(visible: boolean): void {
     this.root.hidden = !visible;
     if (!visible) this.reset();
+  }
+
+  /** Direcional de volta à posição de repouso (canto inferior esquerdo). */
+  private rest(): void {
+    this.base.classList.remove('active');
+    this.base.style.transform = '';
+    this.knob.style.transform = 'translate(0px, 0px)';
   }
 
   private startMove(e: PointerEvent): void {
@@ -126,9 +153,9 @@ export class TouchControls {
     this.originX = e.clientX;
     this.originY = e.clientY;
     this.root.setPointerCapture?.(e.pointerId);
+    this.base.classList.add('active');
     this.base.style.transform = `translate(${e.clientX - JOYSTICK_RADIUS}px, ${e.clientY - JOYSTICK_RADIUS}px)`;
     this.knob.style.transform = 'translate(0px, 0px)';
-    this.base.classList.add('visible');
     this.input.touchMove(0, 0);
   }
 
@@ -158,7 +185,7 @@ export class TouchControls {
   private onEnd(e: PointerEvent): void {
     if (e.pointerId === this.movePointer) {
       this.movePointer = null;
-      this.base.classList.remove('visible');
+      this.rest();
       this.input.releaseJoystick();
     } else if (e.pointerId === this.lookPointer) {
       this.lookPointer = null;
@@ -168,7 +195,7 @@ export class TouchControls {
   private reset(): void {
     this.movePointer = null;
     this.lookPointer = null;
-    this.base.classList.remove('visible');
+    this.rest();
     this.input.releaseJoystick();
   }
 }

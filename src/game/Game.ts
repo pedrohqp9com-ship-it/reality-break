@@ -2,6 +2,7 @@ import { Quaternion, Vector3 } from 'three';
 import { getLevel, nextLevel, type LevelId } from '../levels';
 import type { GameAction, InputMode } from '../input/actions';
 import { powerForAction } from '../input/actions';
+import { HAPTIC, Haptics } from '../input/haptics';
 import { InputManager } from '../input/InputManager';
 import { TouchControls } from '../input/TouchControls';
 import { createSharedTextures, type SharedTextures } from '../render/assets';
@@ -29,6 +30,15 @@ import { Screens } from '../ui/Screens';
 export type GameState = 'menu' | 'briefing' | 'playing' | 'paused' | 'complete';
 
 const tmpGravity = new Vector3();
+const tmpVelocity = new Vector3();
+
+/** Velocidade no plano do chão atual (m/s). */
+function horizontalSpeed(sim: Simulation): number {
+  const v = sim.player.body.velocity;
+  const up = sim.up();
+  tmpVelocity.set(v.x, v.y, v.z);
+  return tmpVelocity.addScaledVector(up, -tmpVelocity.dot(up)).length();
+}
 const tmpInverse = new Quaternion();
 
 /**
@@ -48,6 +58,7 @@ export class Game {
   private readonly rotateOverlay: RotateOverlay;
   private readonly orientation: OrientationGuard;
   private readonly touchDevice: boolean;
+  private readonly haptics = new Haptics();
   private readonly store = new SaveStore(browserStorage());
   private readonly stepper = new FixedStepper(FIXED_DT, MAX_STEPS_PER_FRAME);
   private readonly textures: SharedTextures;
@@ -73,6 +84,7 @@ export class Game {
       if (this.state === 'playing' && this.input.mode === 'keyboard') this.pause();
     };
     this.input.onZoom = (delta) => this.rig.zoom(delta);
+    this.input.onSprintToggle = (active) => this.touch.setSprint(active);
 
     const canFullscreen = fullscreenAvailable();
     this.hud = new Hud(root, {
@@ -97,6 +109,7 @@ export class Game {
         fullscreen: () => void toggleFullscreen(),
       },
       canFullscreen,
+      this.haptics.supported,
     );
     this.rotateOverlay = new RotateOverlay(root, canFullscreen, () => void enterFullscreen());
     this.orientation = new OrientationGuard(
@@ -167,6 +180,7 @@ export class Game {
     this.hud.setLevel(level, sim.plates, this.input.mode);
     this.touch.setPowers(level.powers);
     this.touch.setActiveLevel(sim.gravity.state.level);
+    this.input.setTouchSprint(false);
     this.stepper.reset();
     this.setState('briefing');
     this.screens.briefing(level, this.input.mode);
@@ -254,6 +268,7 @@ export class Game {
   }
 
   private applySettings(settings: Settings): void {
+    this.haptics.enabled = settings.vibration;
     this.input.sensitivity = settings.sensitivity;
     this.input.invertY = settings.invertY;
     this.root.dataset.fps = String(settings.showFps);
@@ -307,9 +322,11 @@ export class Game {
         case 'gravity':
           this.hud.showToast(gravityToast(event.change.previous, event.change.current));
           this.touch.setActiveLevel(event.change.current.level);
+          this.haptics.pulse(HAPTIC.gravity);
           break;
         case 'gate':
           this.hud.showToast(event.open ? 'Barreira aberta' : 'Barreira fechada', 1.2);
+          if (event.open) this.haptics.pulse(HAPTIC.gate);
           break;
         case 'checkpoint':
           this.hud.showToast('Ponto seguro registrado', 1.4);
@@ -323,10 +340,15 @@ export class Game {
           this.hud.showToast('Um objeto saiu da área e voltou ao início', 1.6);
           break;
         case 'complete':
+          this.haptics.pulse([...HAPTIC.complete]);
           this.complete(event.time);
           break;
         case 'jump':
+          this.haptics.pulse(HAPTIC.jump);
+          break;
         case 'land':
+          // Só pousos fortes vibram (quedas longas ou gravidade pesada).
+          if (event.speed > 7) this.haptics.pulse(HAPTIC.land);
           break;
       }
     }
@@ -348,9 +370,10 @@ export class Game {
       const { steps, alpha: a } = this.stepper.advance(dt);
       alpha = a;
       const move = this.input.move();
+      const sprint = this.input.sprint();
       for (let i = 0; i < steps && this.state === 'playing'; i++) {
         view.beforeStep();
-        sim.step({ move, jump: this.jumpQueued });
+        sim.step({ move, jump: this.jumpQueued, sprint });
         this.jumpQueued = false;
         view.afterStep();
         this.handleEvents(sim.drainEvents());
@@ -398,6 +421,8 @@ export class Game {
       level: sim?.level.id ?? null,
       player: p ? { x: p.x, y: p.y, z: p.z } : null,
       grounded: sim?.player.grounded ?? false,
+      sprint: this.input.sprint(),
+      speed: sim ? horizontalSpeed(sim) : 0,
       gravity: sim ? { ...sim.gravity.state } : null,
       plates: sim?.plates.map((pl) => ({ id: pl.def.id, force: pl.force, active: pl.active })) ?? [],
       gates: sim?.gates.map((g) => ({ id: g.def.id, open: g.open })) ?? [],

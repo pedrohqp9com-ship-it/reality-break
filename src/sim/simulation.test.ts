@@ -37,6 +37,26 @@ describe('jogador e gravidade (física real)', () => {
     expect(speed).toBeLessThan(PLAYER.moveSpeed * 1.05);
   });
 
+  it('correr: velocidade maior no chão, mesma altura de salto', () => {
+    const sim = new Simulation(leveza);
+    run(sim, 0.5);
+    run(sim, 0.8, { move: { x: 0, y: 1 }, jump: false, sprint: true });
+    const speed = Math.hypot(sim.player.body.velocity.x, sim.player.body.velocity.z);
+    expect(speed).toBeGreaterThan(PLAYER.sprintSpeed * 0.9);
+    expect(speed).toBeLessThan(PLAYER.sprintSpeed * 1.05);
+
+    const jumper = new Simulation(leveza);
+    run(jumper, 1);
+    const y0 = jumper.player.position.y;
+    let top = y0;
+    jumper.step({ move: { x: 0, y: 1 }, jump: true, sprint: true });
+    runUntil(jumper, 1.5, { move: { x: 0, y: 1 }, jump: false, sprint: true }, (s) => {
+      top = Math.max(top, s.player.position.y);
+      return false;
+    });
+    expect(top - y0).toBeLessThan(jumpHeight(PLAYER.jumpSpeed, 'normal') * 1.05);
+  });
+
   it('inverter: a sonda cai para o teto e o teto vira chão', () => {
     const sim = new Simulation(inversao);
     run(sim, 0.5);
