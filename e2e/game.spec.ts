@@ -125,6 +125,16 @@ test.describe('PC: teclado', () => {
     expect((await gameState(page)).gates[0]!.open).toBe(false);
   });
 
+  test('Shift faz correr mais rápido', async ({ page }) => {
+    await openGame(page);
+    await startLevel(page);
+    await page.keyboard.down('ShiftLeft');
+    await holdKey(page, 'KeyW', 0.8);
+    await page.keyboard.up('ShiftLeft');
+    // Andando, o limite é 6 m/s; correndo, 9,5 m/s.
+    await expect.poll(async () => (await gameState(page)).speed).toBeLessThan(10);
+  });
+
   test('Esc pausa (o tempo para) e continua', async ({ page }) => {
     await openGame(page);
     await startLevel(page);
@@ -144,7 +154,9 @@ test.describe('Android: toque', () => {
     await openGame(page);
     await startLevel(page);
     await expect(page.getByTestId('touch-controls')).toBeVisible();
+    await expect(page.getByTestId('joystick')).toBeVisible(); // direcional em repouso, à vista
     await expect(page.getByRole('button', { name: 'Pular' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Correr/ })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Gravidade leve' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Inverter a gravidade' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Apontar/ })).toHaveCount(0);
@@ -177,6 +189,54 @@ test.describe('Android: toque', () => {
     expect(after.z).toBeLessThan(before.z); // arrastar para cima = para a frente
   });
 
+  test('CORRER liga a corrida: a sonda passa de 6 m/s', async ({ page }) => {
+    await openGame(page);
+    await startLevel(page);
+    const run = page.getByRole('button', { name: /Correr/ });
+    await run.tap();
+    await expect(run).toHaveAttribute('aria-pressed', 'true');
+    expect((await gameState(page)).sprint).toBe(true);
+    const zone = page.locator('.touch-zone-move');
+    const box = (await zone.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height * 0.6;
+    const init = { pointerId: 9, pointerType: 'touch', isPrimary: true, bubbles: true };
+    await zone.dispatchEvent('pointerdown', { ...init, clientX: x, clientY: y });
+    await page.locator('.touch-layer').dispatchEvent('pointermove', { ...init, clientX: x, clientY: y - 70 });
+    await expect.poll(async () => (await gameState(page)).speed, { timeout: 30_000 }).toBeGreaterThan(8.5);
+    await page.locator('.touch-layer').dispatchEvent('pointerup', { ...init, clientX: x, clientY: y - 70 });
+    await run.tap();
+    await expect(run).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('botões e painéis não se sobrepõem (desafio com todos os poderes)', async ({ page }) => {
+    await seedProgress(page, ['leveza', 'inversao']);
+    await openGame(page);
+    await startLevel(page, 'level-orientacao');
+    const selectors = ['.touch-btn', '.hud-icon-btn', '.hud-pause', '.hud-plates', '.hud-gravity', '.hud-title'];
+    const boxes: { name: string; x: number; y: number; w: number; h: number }[] = [];
+    for (const selector of selectors) {
+      const items = page.locator(selector);
+      for (let i = 0; i < (await items.count()); i++) {
+        if (!(await items.nth(i).isVisible())) continue;
+        const b = (await items.nth(i).boundingBox())!;
+        const name = `${selector}#${i} ${(await items.nth(i).textContent())?.trim().slice(0, 12)}`;
+        boxes.push({ name, x: b.x, y: b.y, w: b.width, h: b.height });
+      }
+    }
+    expect(boxes.length).toBeGreaterThan(8);
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]!;
+        const b = boxes[j]!;
+        const overlap = a.x < b.x + b.w - 1 && b.x < a.x + a.w - 1 && a.y < b.y + b.h - 1 && b.y < a.y + a.h - 1;
+        // Os botões de intensidade ficam juntos de propósito (um grupo).
+        const sameGroup = a.name.includes('touch-btn') && b.name.includes('touch-btn') && /LEVE|NORMAL|PESADA/.test(a.name) && /LEVE|NORMAL|PESADA/.test(b.name);
+        if (!sameGroup) expect(overlap, `${a.name} × ${b.name}`).toBe(false);
+      }
+    }
+  });
+
   test('alvos de toque têm pelo menos 44 px', async ({ page }) => {
     await openGame(page);
     await startLevel(page);
@@ -188,5 +248,148 @@ test.describe('Android: toque', () => {
       expect(box!.height, `alvo ${i}`).toBeGreaterThanOrEqual(44);
       expect(box!.width, `alvo ${i}`).toBeGreaterThanOrEqual(44);
     }
+  });
+});
+
+test.describe('tela horizontal', () => {
+  test.skip(({ isMobile }) => !isMobile, 'somente em celular');
+
+  test('em pé, um aviso pede para girar; deitado, o aviso some', async ({ page }) => {
+    const size = page.viewportSize()!;
+    await page.setViewportSize({ width: size.height, height: size.width });
+    await openGame(page);
+    await expect(page.getByTestId('rotate-overlay')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Gire o aparelho' })).toBeVisible();
+    await page.setViewportSize(size);
+    await expect(page.getByTestId('rotate-overlay')).toBeHidden();
+  });
+
+  test('girar para a vertical no meio do jogo pausa; ao voltar, dá para continuar', async ({ page }) => {
+    const size = page.viewportSize()!;
+    await openGame(page);
+    await startLevel(page);
+    await page.setViewportSize({ width: size.height, height: size.width });
+    await expect(page.getByTestId('rotate-overlay')).toBeVisible();
+    expect((await gameState(page)).state).toBe('paused');
+    const t = (await gameState(page)).time;
+    await page.setViewportSize(size);
+    await expect(page.getByTestId('rotate-overlay')).toBeHidden();
+    await expect(page.getByTestId('screen-pause')).toBeVisible();
+    expect((await gameState(page)).time).toBe(t);
+    await page.getByTestId('resume').tap();
+    await expect.poll(async () => (await gameState(page)).time).toBeGreaterThan(t);
+  });
+
+  test('menus e briefing cabem na tela deitada (botões visíveis sem rolar)', async ({ page }) => {
+    await seedProgress(page, ['leveza', 'inversao']);
+    await openGame(page);
+    const viewport = page.viewportSize()!;
+    const fits = async (screen: string) => {
+      const buttons = page.getByTestId(`screen-${screen}`).locator('button');
+      const count = await buttons.count();
+      expect(count, screen).toBeGreaterThan(0);
+      for (let i = 0; i < count; i++) {
+        const box = (await buttons.nth(i).boundingBox())!;
+        expect(box.y + box.height, `${screen}: botão ${i}`).toBeLessThanOrEqual(viewport.height);
+        expect(box.y, `${screen}: botão ${i}`).toBeGreaterThanOrEqual(0);
+      }
+    };
+    await fits('menu');
+    await page.getByTestId('levels').tap();
+    await fits('levels');
+    await page.getByTestId('level-orientacao').tap();
+    await fits('briefing');
+    await page.getByTestId('begin').tap();
+    await expect.poll(async () => (await gameState(page)).state).toBe('playing');
+    await page.getByTestId('pause-button').tap();
+    await fits('pause');
+  });
+
+  test('a interface cabe na tela deitada, sem cortes', async ({ page }) => {
+    await openGame(page);
+    await startLevel(page);
+    const viewport = page.viewportSize()!;
+    const boxes = page.locator('.hud-icon-btn:visible, .hud-pause, .touch-btn, .hud-gravity, .hud-title');
+    const count = await boxes.count();
+    expect(count).toBeGreaterThan(5);
+    for (let i = 0; i < count; i++) {
+      const box = (await boxes.nth(i).boundingBox())!;
+      expect(box.x, `elemento ${i}`).toBeGreaterThanOrEqual(0);
+      expect(box.y, `elemento ${i}`).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width, `elemento ${i}`).toBeLessThanOrEqual(viewport.width);
+      expect(box.y + box.height, `elemento ${i}`).toBeLessThanOrEqual(viewport.height);
+    }
+  });
+});
+
+test.describe('tela cheia', () => {
+  test('entra e sai da tela cheia (botão do HUD no celular, menu de pausa no PC)', async ({ page, isMobile }) => {
+    await openGame(page);
+    await startLevel(page);
+    test.skip(!(await page.evaluate(() => document.fullscreenEnabled)), 'navegador sem tela cheia');
+    if (isMobile) {
+      await page.getByTestId('fullscreen-button').tap();
+    } else {
+      // No PC o cursor fica capturado durante o jogo: a tela cheia fica no menu de pausa.
+      await pauseGame(page, false);
+      await page.getByTestId('pause-fullscreen').click();
+      await expect(page.getByTestId('pause-fullscreen')).toHaveText('Sair da tela cheia');
+    }
+    await expect.poll(async () => (await gameState(page)).fullscreen).toBe(true);
+    await expect(page.getByTestId('fullscreen-button')).toHaveAttribute('aria-pressed', 'true');
+    await page.evaluate(() => document.exitFullscreen());
+    await expect.poll(async () => (await gameState(page)).fullscreen).toBe(false);
+  });
+});
+
+test.describe('vidas, objetivos, vitória e derrota', () => {
+  test('HUD mostra vidas e o objetivo atual, que avança sozinho', async ({ page }) => {
+    await openGame(page);
+    await startLevel(page);
+    await expect(page.getByTestId('lives')).toHaveAttribute('aria-label', 'Vidas: 3 de 3');
+    await expect(page.getByTestId('objective')).toHaveText('Objetivo 1/3: Suba na plataforma de 3,2 m');
+    await page.evaluate(() => window.__REALITY_BREAK__!.teleport(0, 3.8, -14));
+    await expect(page.getByTestId('objective')).toHaveText('Objetivo 2/3: Abra a barreira com a placa');
+  });
+
+  test('um feixe de energia tira uma vida e devolve ao ponto seguro', async ({ page }) => {
+    await openGame(page);
+    await startLevel(page);
+    await page.evaluate(() => window.__REALITY_BREAK__!.teleport(0, 3.8, -13.5)); // ponto seguro
+    await waitGameTime(page, 0.2);
+    await page.evaluate(() => {
+      const debug = window.__REALITY_BREAK__!;
+      const [x, y, z] = debug.hazardCenter('feixe-plataforma')!;
+      debug.teleport(x, y, z);
+    });
+    await expect.poll(async () => (await gameState(page)).lives).toBe(2);
+    await expect(page.getByTestId('lives')).toHaveAttribute('aria-label', 'Vidas: 2 de 3');
+    await expect(page.getByTestId('toast')).toContainText('feixe');
+    expect((await gameState(page)).player!.z).toBeGreaterThan(-15);
+  });
+
+  test('sem vidas: tela de derrota; "Tentar de novo" recomeça com 3 vidas', async ({ page }) => {
+    await seedProgress(page, ['leveza']);
+    await openGame(page);
+    await startLevel(page, 'level-inversao');
+    for (let i = 3; i > 0; i--) {
+      // Cair no vazio (abaixo do chão) custa uma vida.
+      await page.evaluate(() => window.__REALITY_BREAK__!.teleport(0, -20, -26));
+      await expect.poll(async () => (await gameState(page)).lives).toBe(i - 1);
+    }
+    await expect(page.getByTestId('screen-defeat')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sem vidas' })).toBeVisible();
+    expect((await gameState(page)).defeated).toBe(true);
+    await page.getByTestId('retry').click();
+    await expect.poll(async () => (await gameState(page)).state).toBe('playing');
+    expect((await gameState(page)).lives).toBe(3);
+  });
+
+  test('vitória mostra o tempo e as vidas restantes', async ({ page }) => {
+    await openGame(page);
+    await startLevel(page);
+    await page.evaluate(() => window.__REALITY_BREAK__!.teleport(0, 4.6, -34));
+    await expect(page.getByTestId('screen-complete')).toBeVisible();
+    await expect(page.getByTestId('result-lives')).toHaveText('Vidas restantes: 3 de 3');
   });
 });

@@ -37,7 +37,8 @@ const POWER_CONTROLS: Readonly<Record<string, Readonly<Record<InputMode, string>
 const CONTROLS_TABLE: readonly [string, string, string][] = [
   ['Mover', 'W A S D ou setas', 'Direcional (lado esquerdo da tela)'],
   ['Olhar', 'Mouse (clique na tela para capturar)', 'Arrastar no lado direito da tela'],
-  ['Pular', 'Espaço', 'PULAR'],
+  ['Pular', 'Espaço', 'PULAR (botão grande, à direita)'],
+  ['Correr', 'Shift (segurar)', 'CORRER (liga e desliga)'],
   ['Gravidade Leve / Normal / Pesada', '1 / 2 / 3', 'LEVE / NORMAL / PESADA'],
   ['Inverter a gravidade (Desafio 2+)', 'F', 'INVERTER'],
   ['Apontar a gravidade (Desafio 3)', 'G ou clique', 'APONTAR'],
@@ -55,6 +56,7 @@ export class Screens {
     parent: HTMLElement,
     private readonly callbacks: ScreenCallbacks,
     private readonly canFullscreen: boolean,
+    private readonly canVibrate = false,
   ) {
     this.root = el('div', { className: 'screens' });
     parent.append(this.root);
@@ -103,7 +105,11 @@ export class Screens {
               actionButton('Desafios', () => this.levelSelect(progress), { testId: 'levels' }),
               actionButton('Controles', () => this.controls(() => this.mainMenu(progress, nextId))),
               actionButton('Ajustes', () => this.callbacks.openSettings(() => this.mainMenu(progress, nextId))),
-              this.canFullscreen ? actionButton('Tela cheia', () => this.callbacks.fullscreen()) : null,
+              this.canFullscreen
+                ? actionButton(document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia', () =>
+                    this.callbacks.fullscreen(),
+                  )
+                : null,
             ].filter((b): b is HTMLButtonElement => !!b),
           }),
           el('p', {
@@ -190,17 +196,31 @@ export class Screens {
             children: [
               actionButton('Continuar', () => this.callbacks.resume(), { primary: true, testId: 'resume' }),
               actionButton('Reiniciar desafio', () => this.callbacks.restart(), { testId: 'restart' }),
+              this.canFullscreen
+                ? actionButton(
+                    document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia',
+                    () => this.callbacks.fullscreen(),
+                    { testId: 'pause-fullscreen' },
+                  )
+                : null,
               actionButton('Controles', () => this.controls(() => this.pause())),
               actionButton('Ajustes', () => this.callbacks.openSettings(() => this.pause())),
               actionButton('Menu principal', () => this.callbacks.menu(), { testId: 'to-menu' }),
-            ],
+            ].filter((b): b is HTMLButtonElement => !!b),
           }),
         ],
       }),
     );
   }
 
-  complete(level: LevelDef, time: number, best: number, record: boolean, hasNext: boolean): void {
+  complete(
+    level: LevelDef,
+    time: number,
+    best: number,
+    record: boolean,
+    hasNext: boolean,
+    stats: { lives: number; maxLives: number },
+  ): void {
     this.show(
       'complete',
       el('div', {
@@ -211,6 +231,11 @@ export class Screens {
           el('p', {
             className: 'result-best',
             text: record ? 'Novo recorde!' : `Melhor tempo: ${formatTime(best)}`,
+          }),
+          el('p', {
+            className: 'result-lives',
+            attrs: { 'data-testid': 'result-lives' },
+            text: `Vidas restantes: ${stats.lives} de ${stats.maxLives}`,
           }),
           hasNext
             ? null
@@ -233,6 +258,33 @@ export class Screens {
     );
   }
 
+  defeat(level: LevelDef, time: number, objectivesDone: number, objectivesTotal: number): void {
+    this.show(
+      'defeat',
+      el('div', {
+        children: [
+          el('span', { className: 'eyebrow eyebrow-danger', text: `Desafio ${level.number} · ${level.title}` }),
+          el('h2', { text: 'Sem vidas' }),
+          el('p', {
+            className: 'result-best',
+            text: `Você chegou a ${objectivesDone} de ${objectivesTotal} objetivos em ${formatTime(time)}.`,
+          }),
+          el('p', {
+            className: 'result-end',
+            text: 'Observe o ritmo dos feixes antes de atravessar e lembre-se: cair no vazio também custa uma vida.',
+          }),
+          el('div', {
+            className: 'menu-buttons',
+            children: [
+              actionButton('Tentar de novo', () => this.callbacks.restart(), { primary: true, testId: 'retry' }),
+              actionButton('Menu principal', () => this.callbacks.menu()),
+            ],
+          }),
+        ],
+      }),
+    );
+  }
+
   settings(current: Settings, back: () => void): void {
     const sensitivity = el('input', {
       attrs: { type: 'range', min: '0.25', max: '3', step: '0.05', id: 'set-sens', 'data-autofocus': '' },
@@ -243,6 +295,8 @@ export class Screens {
     invert.checked = current.invertY;
     const fps = el('input', { attrs: { type: 'checkbox', id: 'set-fps' } });
     fps.checked = current.showFps;
+    const vibration = el('input', { attrs: { type: 'checkbox', id: 'set-vibration' } });
+    vibration.checked = current.vibration;
     const quality = el('select', {
       attrs: { id: 'set-quality' },
       children: [
@@ -259,11 +313,12 @@ export class Screens {
         invertY: invert.checked,
         showFps: fps.checked,
         quality: quality.value as QualitySetting,
+        vibration: vibration.checked,
       };
       sensValue.textContent = `${next.sensitivity.toFixed(2)}×`;
       this.callbacks.settingsChanged(next);
     };
-    for (const input of [sensitivity, invert, fps, quality]) input.addEventListener('input', emit);
+    for (const input of [sensitivity, invert, fps, quality, vibration]) input.addEventListener('input', emit);
 
     const row = (label: string, id: string, control: HTMLElement, extra?: HTMLElement) =>
       el('div', {
@@ -280,6 +335,7 @@ export class Screens {
           row('Inverter eixo vertical', 'set-invert', invert),
           row('Qualidade gráfica', 'set-quality', quality),
           row('Mostrar FPS', 'set-fps', fps),
+          this.canVibrate ? row('Vibração', 'set-vibration', vibration) : null,
           el('div', { className: 'menu-buttons', children: [actionButton('Voltar', back, { primary: true })] }),
         ],
       }),

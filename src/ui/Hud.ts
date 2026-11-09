@@ -3,17 +3,19 @@ import type { InputMode } from '../input/actions';
 import { formatControlText } from '../input/actions';
 import type { Axis } from '../sim/axis';
 import type { GravityState } from '../sim/gravity';
-import type { GateRuntime, PlateRuntime } from '../sim/simulation';
+import type { GateRuntime, ObjectiveRuntime, PlateRuntime } from '../sim/simulation';
 import { el } from './dom';
 import { AXIS_NAMES, formatGravity, formatNewtons, formatTime, type GravityArrow } from './format';
 
 const KEY_HELP: Readonly<Record<string, string>> = {
-  base: 'WASD mover · Mouse olhar · Espaço pular',
+  base: 'WASD mover · Shift correr · Mouse olhar · Espaço pular',
   intensity: '1 Leve · 2 Normal · 3 Pesada',
   flip: 'F inverter',
   aim: 'G/clique apontar',
   tail: 'R reiniciar · Esc pausa',
 };
+
+const HINT_SECONDS = 9;
 
 interface PlateRow {
   readonly fill: HTMLDivElement;
@@ -25,7 +27,11 @@ interface PlateRow {
 export class Hud {
   readonly root: HTMLDivElement;
   readonly pauseButton: HTMLButtonElement;
+  private readonly fullscreenButton: HTMLButtonElement;
   private readonly title: HTMLDivElement;
+  private readonly lives: HTMLDivElement;
+  private livesShown = -1;
+  private lastObjective = '';
   private readonly objective: HTMLDivElement;
   private readonly timer: HTMLDivElement;
   private readonly arrow: HTMLDivElement;
@@ -40,18 +46,32 @@ export class Hud {
   private plateRows: PlateRow[] = [];
   private toastTimer = 0;
   private lastHint: string | null = null;
+  /** Tempo restante (s) da dica atual na tela. */
+  private hintTimer = 0;
   private lastTimer = '';
 
-  constructor(parent: HTMLElement, onPause: () => void) {
+  constructor(
+    parent: HTMLElement,
+    actions: { onPause: () => void; onFullscreen: (() => void) | null },
+  ) {
     this.title = el('div', { className: 'hud-title' });
-    this.objective = el('div', { className: 'hud-objective' });
+    this.lives = el('div', { className: 'hud-lives', attrs: { 'data-testid': 'lives', role: 'img' } });
+    this.objective = el('div', { className: 'hud-objective', attrs: { 'data-testid': 'objective' } });
     this.timer = el('div', { className: 'hud-timer', attrs: { 'data-testid': 'timer' } });
     this.pauseButton = el('button', {
       className: 'hud-pause',
       attrs: { type: 'button', 'aria-label': 'Pausar', 'data-testid': 'pause-button' },
       children: [el('span'), el('span')],
     });
-    this.pauseButton.addEventListener('click', onPause);
+    this.pauseButton.addEventListener('click', actions.onPause);
+    this.fullscreenButton = el('button', {
+      className: 'hud-icon-btn hud-fullscreen',
+      attrs: { type: 'button', 'aria-label': 'Tela cheia', 'aria-pressed': 'false', 'data-testid': 'fullscreen-button' },
+      children: [el('span', { className: 'fs-icon', attrs: { 'aria-hidden': 'true' } })],
+    });
+    // Sem a API de tela cheia (ex.: iPhone), o botão não aparece.
+    this.fullscreenButton.hidden = !actions.onFullscreen;
+    if (actions.onFullscreen) this.fullscreenButton.addEventListener('click', actions.onFullscreen);
     this.arrow = el('div', { className: 'hud-arrow', attrs: { 'aria-hidden': 'true' } });
     this.axis = el('div', { className: 'hud-axis' });
     this.level = el('div', { className: 'hud-level', attrs: { 'data-testid': 'gravity-level' } });
@@ -77,12 +97,17 @@ export class Hud {
       children: [
         el('div', {
           className: 'hud-col hud-left',
-          children: [this.title, this.objective, gravity, this.hint],
+          children: [
+            el('div', { className: 'hud-row hud-title-row', children: [this.title, this.lives] }),
+            this.objective,
+            gravity,
+            this.hint,
+          ],
         }),
         el('div', {
           className: 'hud-col hud-right',
           children: [
-            el('div', { className: 'hud-row', children: [this.timer, this.pauseButton] }),
+            el('div', { className: 'hud-row', children: [this.timer, this.fullscreenButton, this.pauseButton] }),
             this.plates,
             this.fps,
           ],
@@ -97,6 +122,8 @@ export class Hud {
   setLevel(level: LevelDef, plates: readonly PlateRuntime[], mode: InputMode): void {
     this.title.textContent = `Desafio ${level.number} · ${level.title}`;
     this.objective.textContent = level.objective;
+    this.livesShown = -1;
+    this.lastObjective = '';
     this.plates.replaceChildren();
     this.plateRows = plates.map((plate) => {
       const fill = el('div', { className: 'hud-plate-fill' });
@@ -133,6 +160,11 @@ export class Hud {
     this.root.hidden = !visible;
   }
 
+  setFullscreen(active: boolean): void {
+    this.fullscreenButton.setAttribute('aria-pressed', String(active));
+    this.fullscreenButton.setAttribute('aria-label', active ? 'Sair da tela cheia' : 'Tela cheia');
+  }
+
   showToast(text: string, seconds = 1.8): void {
     this.toast.textContent = text;
     this.toast.classList.add('visible');
@@ -151,8 +183,30 @@ export class Hud {
       hint: string | null;
       mode: InputMode;
       fps: number | null;
+      lives: number;
+      maxLives: number;
+      objectives: readonly ObjectiveRuntime[];
     },
   ): void {
+    if (data.lives !== this.livesShown) {
+      this.livesShown = data.lives;
+      this.lives.replaceChildren(
+        ...Array.from({ length: data.maxLives }, (_, i) =>
+          el('span', { className: `hud-life${i < data.lives ? ' full' : ''}` }),
+        ),
+      );
+      this.lives.setAttribute('aria-label', `Vidas: ${data.lives} de ${data.maxLives}`);
+      this.lives.dataset.lives = String(data.lives);
+    }
+    const doneCount = data.objectives.filter((o) => o.done).length;
+    const current = data.objectives.find((o) => !o.done);
+    const objectiveText = current
+      ? `Objetivo ${doneCount + 1}/${data.objectives.length}: ${current.def.text}`
+      : 'Objetivos cumpridos';
+    if (objectiveText !== this.lastObjective) {
+      this.objective.textContent = objectiveText;
+      this.lastObjective = objectiveText;
+    }
     const timer = formatTime(data.time);
     if (timer !== this.lastTimer) {
       this.timer.textContent = timer;
@@ -187,9 +241,13 @@ export class Hud {
     const hint = data.hint ? formatControlText(data.hint, data.mode) : null;
     if (hint !== this.lastHint) {
       this.hint.textContent = hint ?? '';
-      this.hint.classList.toggle('visible', !!hint);
       this.lastHint = hint;
+      this.hintTimer = hint ? HINT_SECONDS : 0;
+    } else if (this.hintTimer > 0) {
+      this.hintTimer -= dt;
     }
+    // A dica some depois de alguns segundos e volta ao entrar em outra zona.
+    this.hint.classList.toggle('visible', !!hint && this.hintTimer > 0);
 
     if (this.toastTimer > 0) {
       this.toastTimer -= dt;

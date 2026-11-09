@@ -7,6 +7,8 @@ export interface Settings {
   invertY: boolean;
   quality: QualitySetting;
   showFps: boolean;
+  /** Vibração no Android (só aparece nos ajustes se o aparelho permitir). */
+  vibration: boolean;
 }
 
 export interface Progress {
@@ -27,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   invertY: false,
   quality: 'auto',
   showFps: false,
+  vibration: true,
 };
 
 export function defaultSave(): SaveData {
@@ -58,6 +61,7 @@ export function parseSave(raw: string | null): SaveData {
       save.settings.quality = s.quality as QualitySetting;
     }
     if (typeof s.showFps === 'boolean') save.settings.showFps = s.showFps;
+    if (typeof s.vibration === 'boolean') save.settings.vibration = s.vibration;
   }
   if (progress && typeof progress === 'object') {
     const p = progress as Record<string, unknown>;

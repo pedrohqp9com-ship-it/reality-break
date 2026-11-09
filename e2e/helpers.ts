@@ -7,6 +7,7 @@ declare global {
       state: () => unknown;
       teleport: (x: number, y: number, z: number) => void;
       setView: (yaw: number, pitch: number) => void;
+      hazardCenter: (id: string) => [number, number, number] | null;
     };
   }
 }
@@ -14,15 +15,22 @@ declare global {
 export type DebugState = {
   state: string;
   screen: string | null;
+  portraitBlocked: boolean;
+  fullscreen: boolean;
   mode: 'keyboard' | 'touch';
   level: string | null;
   player: { x: number; y: number; z: number } | null;
   grounded: boolean;
+  sprint: boolean;
+  speed: number;
   gravity: { axis: string; level: string } | null;
   plates: { id: string; force: number; active: boolean }[];
   gates: { id: string; open: boolean }[];
   time: number;
   completed: boolean;
+  defeated: boolean;
+  lives: number;
+  objectives: { id: string; done: boolean }[];
   progress: { completed: string[]; bestTimes: Record<string, number> };
 };
 

@@ -75,6 +75,28 @@ export const leveza: LevelDef = {
       yaw: 0,
     },
   ],
+  lives: 3,
+  // Entre a placa e a barreira, um feixe varre o corredor. Com a gravidade Pesada
+  // (necessária para manter a barreira aberta) o salto não passa por cima: é
+  // preciso esperar a hora certa.
+  hazards: [
+    {
+      id: 'feixe-plataforma',
+      center: [0, 4.7, -25.5],
+      size: [1.2, 3, 0.4],
+      motion: { axis: 0, amplitude: 4.4, period: 5 },
+    },
+  ],
+  objectives: [
+    {
+      id: 'subir',
+      text: 'Suba na plataforma de 3,2 m',
+      kind: 'zone',
+      zone: zone([-6, 3, -38], [6, 14, -12]),
+    },
+    { id: 'barreira', text: 'Abra a barreira com a placa', kind: 'gate', gate: 'barreira' },
+    { id: 'portal', text: 'Entre no portal', kind: 'portal' },
+  ],
   hints: [
     {
       zone: zone([-6, -1, -12], [6, 12, 6]),
@@ -85,8 +107,12 @@ export const leveza: LevelDef = {
       text: 'A placa mede a força sobre ela (em newtons). Empurre o Cubo Denso até a placa.',
     },
     {
-      zone: zone([-6, 3, -28], [6, 14, -20]),
+      zone: zone([-6, 3, -24.5], [6, 14, -20]),
       text: 'Peso = massa × gravidade. Com [PESADA], o mesmo cubo pesa o dobro.',
+    },
+    {
+      zone: zone([-6, 3, -28], [6, 14, -24.5]),
+      text: 'O feixe vai e volta: espere ele passar e atravesse. Use [CORRER] para ser mais rápido.',
     },
   ],
   accent: 0x38f2ff,

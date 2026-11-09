@@ -72,7 +72,44 @@ export interface CheckpointDef {
   readonly zone: Aabb;
   readonly spawn: Vec3Tuple;
   readonly yaw: number;
+  /** Direção da gravidade ao voltar aqui (padrão: chão). Ex.: um ponto seguro numa parede. */
+  readonly gravity?: Axis;
 }
+
+/** Movimento de vaivém de um feixe ao longo de um eixo (seno). */
+export interface HazardMotion {
+  readonly axis: 0 | 1 | 2;
+  /** Deslocamento máximo para cada lado (m). */
+  readonly amplitude: number;
+  /** Tempo de ida e volta (s). */
+  readonly period: number;
+  /** Fase inicial (fração do ciclo, 0–1). */
+  readonly phase?: number;
+}
+
+/** Feixe que acende e apaga. */
+export interface HazardBlink {
+  /** Duração do ciclo (s). */
+  readonly period: number;
+  /** Fração do ciclo em que fica aceso (0–1). */
+  readonly on: number;
+  readonly phase?: number;
+}
+
+/** Feixe de energia: tocar enquanto aceso custa uma vida. */
+export interface HazardDef {
+  readonly id: string;
+  readonly center: Vec3Tuple;
+  readonly size: Vec3Tuple;
+  readonly motion?: HazardMotion;
+  readonly blink?: HazardBlink;
+}
+
+/** Objetivo do desafio, cumprido pela própria simulação (não é só texto). */
+export type ObjectiveDef =
+  | { readonly id: string; readonly text: string; readonly kind: 'zone'; readonly zone: Aabb }
+  | { readonly id: string; readonly text: string; readonly kind: 'gate'; readonly gate: string }
+  | { readonly id: string; readonly text: string; readonly kind: 'portal' };
 
 /**
  * Dica que aparece enquanto a sonda está dentro da zona. Os marcadores entre
@@ -105,6 +142,10 @@ export interface LevelDef {
   readonly gates: readonly GateDef[];
   readonly portal: PortalDef;
   readonly checkpoints: readonly CheckpointDef[];
+  readonly hazards: readonly HazardDef[];
+  readonly objectives: readonly ObjectiveDef[];
+  /** Vidas no início do desafio. */
+  readonly lives: number;
   readonly hints: readonly HintDef[];
   /** Cor de destaque do desafio (hex). */
   readonly accent: number;

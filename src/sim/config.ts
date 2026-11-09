@@ -15,6 +15,8 @@ export const PLAYER = {
   mass: 70,
   /** Velocidade máxima andando (m/s). */
   moveSpeed: 6,
+  /** Velocidade máxima correndo (m/s): pula mais longe, mas o salto não fica mais alto. */
+  sprintSpeed: 9.5,
   /** Velocidade vertical aplicada no salto (m/s). Altura = v² / (2g). */
   jumpSpeed: 6,
   /** Quão rápido a velocidade alcança a desejada no chão / no ar (1/s). */
@@ -67,3 +69,6 @@ export const PLATE = {
  * amortece a correção de penetração e reduz o quique em quedas rápidas.
  */
 export const PLAYER_CONTACT_RELAXATION = 6;
+
+/** Proteção (s) contra feixes logo depois de voltar a um ponto seguro. */
+export const RESPAWN_INVULNERABILITY = 1.5;

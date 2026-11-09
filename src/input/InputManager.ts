@@ -1,4 +1,11 @@
-import { isMoveKey, KEY_ACTIONS, moveFromKeys, type GameAction, type InputMode } from './actions';
+import {
+  isMoveKey,
+  KEY_ACTIONS,
+  moveFromKeys,
+  SPRINT_KEYS,
+  type GameAction,
+  type InputMode,
+} from './actions';
 
 /** Radianos por pixel (antes do ajuste de sensibilidade). */
 const MOUSE_LOOK = 0.0024;
@@ -28,6 +35,7 @@ export class InputManager {
   onModeChange: ((mode: InputMode) => void) | null = null;
   onPointerLockLost: (() => void) | null = null;
   onZoom: ((delta: number) => void) | null = null;
+  onSprintToggle: ((active: boolean) => void) | null = null;
   /** Só gera comandos de jogo quando ativo (fora de menus e pausa). */
   active = false;
 
@@ -36,6 +44,8 @@ export class InputManager {
   private lookYaw = 0;
   private lookPitch = 0;
   private joystick = { x: 0, y: 0 };
+  /** Corrida ligada pelo botão de toque (fica ligada até tocar de novo). */
+  private touchSprint = false;
   private dragPointer: number | null = null;
   private dragX = 0;
   private dragY = 0;
@@ -107,7 +117,7 @@ export class InputManager {
     const action = KEY_ACTIONS[event.code];
     if (isMoveKey(event.code) || event.code === 'Space') event.preventDefault();
     if (event.repeat) return;
-    if (isMoveKey(event.code)) this.keys.add(event.code);
+    if (isMoveKey(event.code) || SPRINT_KEYS.has(event.code)) this.keys.add(event.code);
     if (action) {
       if (action === 'pause' || this.active) this.actions.push(action);
     }
@@ -164,7 +174,23 @@ export class InputManager {
 
   touchAction(action: GameAction): void {
     this.setMode('touch');
+    if (action === 'sprint') {
+      if (this.active) this.setTouchSprint(!this.touchSprint);
+      return;
+    }
     if (action === 'pause' || this.active) this.actions.push(action);
+  }
+
+  setTouchSprint(active: boolean): void {
+    this.touchSprint = active;
+    this.onSprintToggle?.(active);
+  }
+
+  /** Correndo: Shift segurado no teclado ou botão CORRER ligado. */
+  sprint(): boolean {
+    if (!this.active) return false;
+    for (const code of SPRINT_KEYS) if (this.keys.has(code)) return true;
+    return this.touchSprint;
   }
 
   private addLook(dx: number, dy: number): void {

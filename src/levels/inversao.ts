@@ -59,7 +59,8 @@ export const inversao: LevelDef = {
     {
       id: 'caixa-4',
       kind: 'caixa',
-      center: [-2, 0.3, -33],
+      // Sob um trecho com teto (fora do vão), para não cair no vazio ao inverter.
+      center: [-2, 0.3, -29.8],
       edge: 0.6,
       mass: 8,
       home: zone([-6, -10, -52], [6, 9, -17]),
@@ -67,7 +68,7 @@ export const inversao: LevelDef = {
     {
       id: 'caixa-5',
       kind: 'caixa',
-      center: [3, 0.3, -35],
+      center: [3, 0.3, -38.2],
       edge: 0.6,
       mass: 8,
       home: zone([-6, -10, -52], [6, 9, -17]),
@@ -83,11 +84,53 @@ export const inversao: LevelDef = {
       spawn: [0, 0.55, -19],
       yaw: 0,
     },
+    {
+      id: 'ilha',
+      zone: zone([-6, -1, -39], [6, 4, -29]),
+      spawn: [0, 0.55, -33],
+      yaw: 0,
+    },
+  ],
+  lives: 3,
+  // Dois feixes no caminho pelo teto: uma cortina que pisca (passe quando apagar)
+  // e um feixe que vai e volta. Quem anda pelo chão não é atingido.
+  hazards: [
+    {
+      id: 'cortina-teto',
+      center: [0, 8, -9],
+      size: [12, 2, 0.3],
+      blink: { period: 2.4, on: 0.5 },
+    },
+    {
+      id: 'feixe-teto',
+      center: [0, 8, -25],
+      size: [1.2, 2, 0.4],
+      motion: { axis: 0, amplitude: 4.4, period: 3.6 },
+    },
+  ],
+  objectives: [
+    {
+      id: 'fresta',
+      text: 'Atravesse a fresta junto ao teto',
+      kind: 'zone',
+      zone: zone([-6, -12, -60], [6, 20, -17]),
+    },
+    {
+      id: 'teto-final',
+      text: 'Chegue ao teto depois do vão',
+      kind: 'zone',
+      zone: zone([-6, 6, -52], [6, 9, -37]),
+    },
+    { id: 'portal', text: 'Entre no portal preso ao teto', kind: 'portal' },
   ],
   hints: [
     {
-      zone: zone([-6, -1, -16], [6, 9, 6]),
+      zone: zone([-6, -1, -7], [6, 9, 6]),
       text: 'A passagem fica junto ao teto, alta demais até para o salto Leve. Use [INVERTER].',
+    },
+    {
+      zone: zone([-6, -1, -16], [6, 9, -7]),
+      text: 'A cortina de energia no teto pisca: atravesse quando ela apagar.',
     },
     {
       zone: zone([-6, -1, -29], [6, 9, -17]),

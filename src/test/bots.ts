@@ -1,5 +1,7 @@
 import { Vector3 } from 'three';
 import type { Vec3Like } from '../sim/axis';
+import { PLAYER } from '../sim/config';
+import { hazardHits } from '../sim/hazards';
 import type { SimInput, Simulation } from '../sim/simulation';
 import { distanceAlongPlane, IDLE, runUntil, steerTowards } from './helpers';
 
@@ -61,6 +63,43 @@ function hold(sim: Simulation, seconds: number) {
   runUntil(sim, seconds, IDLE, () => false);
 }
 
+/** Distância percorrida correndo a partir do repouso (aceleração 50 m/s² até 9,5 m/s). */
+function sprintDistance(t: number): number {
+  const v = PLAYER.sprintSpeed;
+  const accelTime = v / PLAYER.groundAccel;
+  if (t <= accelTime) return 0.5 * PLAYER.groundAccel * t * t * 0.7;
+  return 0.5 * v * accelTime * 0.7 + v * (t - accelTime) * 0.85;
+}
+
+/**
+ * Atravessa um feixe como uma pessoa faria: observa o ritmo e só sai quando a
+ * travessia inteira (prevista pelo tempo de jogo) fica livre, com folga.
+ */
+function crossHazard(sim: Simulation, hazardId: string, target: Vec3Like, maxWait = 12): boolean {
+  const hazard = sim.hazard(hazardId);
+  if (!hazard) throw new Error(hazardId);
+  const start = new Vector3(sim.player.position.x, sim.player.position.y, sim.player.position.z);
+  const end = new Vector3(target.x, target.y, target.z);
+  const length = start.distanceTo(end);
+  const safe = (t0: number) => {
+    for (let t = 0; t <= 2.5; t += 0.02) {
+      const s = Math.min(length, sprintDistance(t));
+      const p = new Vector3().lerpVectors(start, end, length > 0 ? s / length : 1);
+      if (hazardHits(hazard, t0 + t, p, PLAYER.radius + 0.45)) return false;
+      if (s >= length) return true;
+    }
+    return true;
+  };
+  const waited = runUntil(sim, maxWait, IDLE, (s) => safe(s.time));
+  if (!waited) return false;
+  return runUntil(
+    sim,
+    4,
+    (s) => ({ ...steerTowards(s, target, false, 3), sprint: true }),
+    (s) => distanceAlongPlane(s, target) < 0.5,
+  );
+}
+
 export function solveLeveza(sim: Simulation): boolean {
   sim.setIntensity('leve');
   // Corre até a parede da plataforma pulando: em gravidade Leve, o salto alcança o topo.
@@ -77,7 +116,9 @@ export function solveLeveza(sim: Simulation): boolean {
   sim.setIntensity('pesada');
   hold(sim, 1);
   // Sai da frente do cubo e vai até o portal pela barreira aberta.
-  if (!goTo(sim, { x: -2, y: 3.7, z: -24 })) return false;
+  if (!goTo(sim, { x: -2, y: 3.7, z: -24.3 })) return false;
+  hold(sim, 0.3);
+  if (!crossHazard(sim, 'feixe-plataforma', { x: -2, y: 3.7, z: -27.2 })) return false;
   return runUntil(sim, 20, (s) => steerTowards(s, { x: 0, y: 4.6, z: -34 }), (s) => s.completed);
 }
 
@@ -85,6 +126,13 @@ export function solveInversao(sim: Simulation): boolean {
   // Cai para o teto e atravessa a fresta.
   sim.flipGravity();
   hold(sim, 1.5);
+  // Pelo teto: cortina que pisca e depois um feixe que vai e volta.
+  if (!goTo(sim, { x: 0, y: 8.5, z: -7.6 }, 0.4, 20)) return false;
+  hold(sim, 0.3);
+  if (!crossHazard(sim, 'cortina-teto', { x: 0, y: 8.5, z: -10.6 })) return false;
+  if (!goTo(sim, { x: 0, y: 8.5, z: -23.6 }, 0.4, 20)) return false;
+  hold(sim, 0.3);
+  if (!crossHazard(sim, 'feixe-teto', { x: 0, y: 8.5, z: -26.6 })) return false;
   if (!goTo(sim, { x: 0, y: 8.5, z: -30 }, 0.5, 20)) return false;
   // Volta para o chão sobre a ilha (o teto tem um vão à frente).
   sim.flipGravity();
@@ -110,6 +158,9 @@ export function solveOrientacao(sim: Simulation): boolean {
   if (!sim.gates[0]?.open) return false;
   // Sobe pela parede contornando a sacada e para logo acima dela.
   if (!goTo(sim, { x: 4.5, y: 9, z: -7.5 }, 0.5)) return false;
+  if (!goTo(sim, { x: 4.5, y: 11.6, z: -7.5 }, 0.3)) return false;
+  hold(sim, 0.3);
+  if (!crossHazard(sim, 'feixe-parede', { x: 4.5, y: 13.8, z: -7.5 })) return false;
   if (!goTo(sim, { x: 4.5, y: 16, z: -7.5 }, 0.5)) return false;
   if (!goTo(sim, { x: 0, y: 16, z: -7.5 }, 0.4)) return false;
   // Olha para o chão original (atrás, no referencial da parede) e aponta.

@@ -8,19 +8,26 @@ Você controla uma sonda esférica num complexo de testes futurista. Para avanç
 intensidade da gravidade, inverte "para cima" e "para baixo" e escolhe qual parede é o chão.
 Tudo — você, os cubos, as caixas — obedece à mesma física, simulada de verdade.
 
-> **Estado atual: protótipo jogável (Etapa 1).** Três desafios progressivos, controles de PC e
-> Android, testes automatizados. Ainda **não** foi testado em aparelhos Android reais, só em
-> emulação; veja [limitações](docs/ETAPAS.md#limitações-conhecidas).
+> **Estado atual: REALITY BREAK 2.0, primeira etapa.** Tela horizontal obrigatória, controles de
+> celular refeitos (joystick, correr, arco de botões, vibração), vidas, feixes de energia,
+> objetivos e telas de vitória e derrota sobre os três desafios. Ainda **não** foi testado em
+> aparelhos Android reais, só em emulação; veja [limitações](docs/ETAPAS.md#limitações-conhecidas).
+
+O jogo é feito para a **tela deitada**. No celular em pé, um aviso pede para girar o aparelho (o
+botão "Jogar em tela cheia" também trava a tela na horizontal no Chrome do Android).
 
 ## Como jogar
 
 | Desafio | Poder novo | O que pede |
 | --- | --- | --- |
-| 1 · Leveza | **Intensidade**: Leve (0,35 g), Normal (1 g), Pesada (2 g) | Subir numa plataforma de 3,2 m (o salto normal chega a ~1,8 m; o Leve, a ~5,2 m) e abrir uma barreira com uma placa de pressão de 1500 N — o Cubo Denso (100 kg) só passa disso na gravidade Pesada. |
-| 2 · Inversão | **Inverter** a gravidade | Atravessar uma fresta junto ao teto, alternar entre teto e chão por cima de vãos e chegar ao portal preso ao teto. |
-| 3 · Orientação | **Apontar** a gravidade para qualquer um dos 6 eixos | Fazer da parede norte o chão, levar o Cubo Denso à placa embutida nela, subir pela parede e pousar na sacada do portal. |
+| 1 · Leveza | **Intensidade**: Leve (0,35 g), Normal (1 g), Pesada (2 g) | Subir numa plataforma de 3,2 m (o salto normal chega a ~1,8 m; o Leve, a ~5,2 m), abrir uma barreira com uma placa de pressão de 1500 N — o Cubo Denso (100 kg) só passa disso na gravidade Pesada — e atravessar um feixe que varre o corredor. |
+| 2 · Inversão | **Inverter** a gravidade | Atravessar uma fresta junto ao teto passando por uma cortina de energia que pisca e um feixe que vai e volta, alternar entre teto e chão por cima de vãos e chegar ao portal preso ao teto. |
+| 3 · Orientação | **Apontar** a gravidade para qualquer um dos 6 eixos | Fazer da parede norte o chão, levar o Cubo Denso à placa embutida nela, subir pela parede passando por um feixe rápido e pousar na sacada do portal. |
 
-Cada desafio só é liberado depois do anterior; os poderes se acumulam.
+Cada desafio só é liberado depois do anterior; os poderes se acumulam. Cada um tem **3 vidas**:
+cair no vazio ou tocar um feixe aceso custa uma vida e volta ao último ponto seguro (com 1,5 s de
+proteção). Sem vidas, a partida termina em derrota. O HUD mostra as vidas e o objetivo atual, que
+a própria simulação marca como cumprido.
 
 ### Controles
 
@@ -28,12 +35,18 @@ Cada desafio só é liberado depois do anterior; os poderes se acumulam.
 | --- | --- | --- |
 | Mover | W A S D ou setas | Direcional que aparece onde o polegar toca (metade esquerda) |
 | Olhar | Mouse (clique na tela para capturar) | Arrastar na metade direita |
-| Pular | Espaço | PULAR |
+| Pular | Espaço | PULAR (botão grande, canto direito) |
+| Correr (9,5 m/s em vez de 6) | Shift (segurar) | CORRER (liga e desliga) |
 | Intensidade | 1 / 2 / 3 | LEVE / NORMAL / PESADA |
 | Inverter | F | INVERTER |
 | Apontar | G ou clique | APONTAR (mire com a câmera antes) |
 | Zoom da câmera | Roda do mouse | — |
+| Tela cheia | Menu principal ou de pausa | Botão ⛶ no HUD |
 | Reiniciar / pausar | R / Esc ou P | Botão ❙❙ |
+
+No celular, o direcional fica visível no canto inferior esquerdo e "nasce" onde o polegar tocar;
+CORRER, APONTAR e INVERTER ficam em arco ao redor do PULAR, e só aparecem os poderes já
+liberados. Há vibração curta em pulos, pousos fortes, trocas de gravidade e danos (ajustável).
 
 Na tela de jogo, a **bússola** mostra para onde a gravidade puxa em relação à câmera, e o painel da
 placa mostra a força medida em newtons.
@@ -47,7 +60,10 @@ placa mostra a força medida em newtons.
 - Botões de poderes ainda não liberados não aparecem e não fazem nada.
 - Os testes provam isso: medem alturas de salto (`h = v²/2g`) e forças (`m·g`), mostram que cada
   desafio **não** se resolve sem o poder novo e usam "robôs" que **resolvem os três desafios
-  usando só os comandos do jogador** (direcional, pulo, poderes e câmera).
+  usando só os comandos do jogador** (direcional, pulo, correr, poderes e câmera), esperando a
+  hora certa nos feixes, sem perder vida e cumprindo todos os objetivos.
+- Feixes de energia são regras de jogo declaradas (não corpos físicos): tocar um feixe aceso
+  custa uma vida; o movimento e o pisca dependem só do tempo de jogo, então dá para ler o ritmo.
 
 Duas regras de jogo foram escolhidas conscientemente e estão documentadas no código:
 velocidade terminal de 30 m/s (o papel do arrasto do ar; também evita atravessar paredes) e
@@ -70,8 +86,8 @@ npm run preview      # serve dist/ em http://localhost:4173
 ```bash
 npm run typecheck    # TypeScript
 npm run lint         # ESLint
-npm test             # Vitest: física, gravidade, desafios, robôs, interface (78 testes)
-npm run test:e2e     # Playwright no build: 14 cenários em PC + Android (paisagem e em pé) = 30 execuções
+npm test             # Vitest: física, gravidade, desafios, robôs, interface (95 testes)
+npm run test:e2e     # Playwright no build: 26 cenários em PC + 2 celulares Android deitados
 npm run check        # typecheck + lint + test + build
 ```
 

@@ -52,6 +52,7 @@ export class Player {
     forward: Vector3,
     right: Vector3,
     up: Vector3,
+    sprint = false,
   ): boolean {
     const body = this.body;
     const v = tmpVel.set(body.velocity.x, body.velocity.y, body.velocity.z);
@@ -69,7 +70,7 @@ export class Player {
       .copy(forward)
       .multiplyScalar(my)
       .addScaledVector(right, mx)
-      .multiplyScalar(PLAYER.moveSpeed);
+      .multiplyScalar(sprint ? PLAYER.sprintSpeed : PLAYER.moveSpeed);
     if (desired.lengthSq() > 0.01) this.facing.copy(desired).normalize();
 
     const response = this.grounded ? PLAYER.groundResponse : PLAYER.airResponse;

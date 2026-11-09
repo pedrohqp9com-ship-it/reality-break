@@ -2,6 +2,7 @@ import { Quaternion, Vector3 } from 'three';
 import { getLevel, nextLevel, type LevelId } from '../levels';
 import type { GameAction, InputMode } from '../input/actions';
 import { powerForAction } from '../input/actions';
+import { HAPTIC, Haptics } from '../input/haptics';
 import { InputManager } from '../input/InputManager';
 import { TouchControls } from '../input/TouchControls';
 import { createSharedTextures, type SharedTextures } from '../render/assets';
@@ -20,12 +21,24 @@ import {
   type Settings,
 } from '../state/storage';
 import { gravityArrow, gravityToast } from '../ui/format';
+import { enterFullscreen, fullscreenAvailable, isFullscreen, toggleFullscreen } from '../ui/fullscreen';
 import { Hud } from '../ui/Hud';
+import { detectTouchDevice, OrientationGuard } from '../ui/orientation';
+import { RotateOverlay } from '../ui/RotateOverlay';
 import { Screens } from '../ui/Screens';
 
-export type GameState = 'menu' | 'briefing' | 'playing' | 'paused' | 'complete';
+export type GameState = 'menu' | 'briefing' | 'playing' | 'paused' | 'complete' | 'defeat';
 
 const tmpGravity = new Vector3();
+const tmpVelocity = new Vector3();
+
+/** Velocidade no plano do chão atual (m/s). */
+function horizontalSpeed(sim: Simulation): number {
+  const v = sim.player.body.velocity;
+  const up = sim.up();
+  tmpVelocity.set(v.x, v.y, v.z);
+  return tmpVelocity.addScaledVector(up, -tmpVelocity.dot(up)).length();
+}
 const tmpInverse = new Quaternion();
 
 /**
@@ -42,6 +55,10 @@ export class Game {
   private readonly touch: TouchControls;
   private readonly hud: Hud;
   private readonly screens: Screens;
+  private readonly rotateOverlay: RotateOverlay;
+  private readonly orientation: OrientationGuard;
+  private readonly touchDevice: boolean;
+  private readonly haptics = new Haptics();
   private readonly store = new SaveStore(browserStorage());
   private readonly stepper = new FixedStepper(FIXED_DT, MAX_STEPS_PER_FRAME);
   private readonly textures: SharedTextures;
@@ -53,7 +70,8 @@ export class Game {
   private pausedAt = 0;
 
   constructor(private readonly root: HTMLElement, canvas: HTMLCanvasElement) {
-    const touchFirst = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+    this.touchDevice = detectTouchDevice();
+    const touchFirst = this.touchDevice;
     const settings = this.store.data.settings;
     this.renderer = new Renderer(canvas, settings.quality, touchFirst);
     this.rig = new CameraRig(canvas.clientWidth / Math.max(1, canvas.clientHeight));
@@ -66,8 +84,13 @@ export class Game {
       if (this.state === 'playing' && this.input.mode === 'keyboard') this.pause();
     };
     this.input.onZoom = (delta) => this.rig.zoom(delta);
+    this.input.onSprintToggle = (active) => this.touch.setSprint(active);
 
-    this.hud = new Hud(root, () => this.pause());
+    const canFullscreen = fullscreenAvailable();
+    this.hud = new Hud(root, {
+      onPause: () => this.pause(),
+      onFullscreen: canFullscreen ? () => void toggleFullscreen() : null,
+    });
     this.touch = new TouchControls(root, this.input);
     this.screens = new Screens(
       root,
@@ -83,10 +106,24 @@ export class Game {
         },
         settingsChanged: (s) => this.saveSettings(s),
         openSettings: (back) => this.screens.settings(this.store.data.settings, back),
-        fullscreen: () => this.enterFullscreen(),
+        fullscreen: () => void toggleFullscreen(),
       },
-      !!document.fullscreenEnabled,
+      canFullscreen,
+      this.haptics.supported,
     );
+    this.rotateOverlay = new RotateOverlay(root, canFullscreen, () => void enterFullscreen());
+    this.orientation = new OrientationGuard(
+      () => this.touchDevice || this.input.mode === 'touch',
+      (blocked) => this.onOrientation(blocked),
+    );
+    this.rotateOverlay.setVisible(this.orientation.blocked);
+    document.addEventListener('fullscreenchange', () => {
+      this.hud.setFullscreen(isFullscreen());
+      // Atualiza o texto "Tela cheia" / "Sair da tela cheia" das telas abertas.
+      if (this.screens.current === 'menu') this.toMenu();
+      else if (this.screens.current === 'pause') this.screens.pause();
+      this.resize();
+    });
 
     window.addEventListener('resize', () => this.resize());
     document.addEventListener('visibilitychange', () => {
@@ -143,6 +180,7 @@ export class Game {
     this.hud.setLevel(level, sim.plates, this.input.mode);
     this.touch.setPowers(level.powers);
     this.touch.setActiveLevel(sim.gravity.state.level);
+    this.input.setTouchSprint(false);
     this.stepper.reset();
     this.setState('briefing');
     this.screens.briefing(level, this.input.mode);
@@ -155,7 +193,7 @@ export class Game {
   }
 
   begin(): void {
-    if (!this.sim) return;
+    if (!this.sim || this.orientation.blocked) return;
     this.screens.hide();
     this.setState('playing');
     this.stepper.reset();
@@ -171,7 +209,7 @@ export class Game {
   }
 
   resume(): void {
-    if (this.state !== 'paused') return;
+    if (this.state !== 'paused' || this.orientation.blocked) return;
     this.screens.hide();
     this.setState('playing');
     this.stepper.reset();
@@ -199,23 +237,35 @@ export class Game {
     this.store.save();
     this.input.releasePointerLock();
     this.setState('complete');
-    this.screens.complete(level, time, progress.bestTimes[level.id] ?? time, record, !!nextLevel(level.id));
+    this.screens.complete(level, time, progress.bestTimes[level.id] ?? time, record, !!nextLevel(level.id), {
+      lives: this.sim.lives,
+      maxLives: this.sim.maxLives,
+    });
   }
 
-  private enterFullscreen(): void {
-    const element = document.documentElement;
-    element
-      .requestFullscreen?.({ navigationUI: 'hide' })
-      .then(() => {
-        const orientation = screen.orientation as ScreenOrientation & {
-          lock?: (o: string) => Promise<void>;
-        };
-        return orientation?.lock?.('landscape');
-      })
-      .catch(() => undefined);
+  /** Sem vidas: tela de derrota (o progresso salvo não muda). */
+  private defeat(time: number): void {
+    if (!this.sim) return;
+    this.input.releasePointerLock();
+    this.setState('defeat');
+    const done = this.sim.objectives.filter((o) => o.done).length;
+    this.screens.defeat(this.sim.level, time, done, this.sim.objectives.length);
+  }
+
+  /** Celular em pé: mostra o aviso para girar e pausa o jogo. */
+  private onOrientation(blocked: boolean): void {
+    this.rotateOverlay.setVisible(blocked);
+    if (blocked) this.pause();
+    this.root.dataset.portrait = String(blocked);
+  }
+
+  /** Se o celular está em pé (o jogo fica bloqueado até girar). */
+  get portraitBlocked(): boolean {
+    return this.orientation.blocked;
   }
 
   private onModeChange(mode: InputMode): void {
+    this.orientation.check();
     this.hud.setMode(mode);
     this.touch.setVisible(this.state === 'playing' && mode === 'touch');
     if (mode === 'touch') this.input.releasePointerLock();
@@ -230,6 +280,7 @@ export class Game {
   }
 
   private applySettings(settings: Settings): void {
+    this.haptics.enabled = settings.vibration;
     this.input.sensitivity = settings.sensitivity;
     this.input.invertY = settings.invertY;
     this.root.dataset.fps = String(settings.showFps);
@@ -283,9 +334,11 @@ export class Game {
         case 'gravity':
           this.hud.showToast(gravityToast(event.change.previous, event.change.current));
           this.touch.setActiveLevel(event.change.current.level);
+          this.haptics.pulse(HAPTIC.gravity);
           break;
         case 'gate':
           this.hud.showToast(event.open ? 'Barreira aberta' : 'Barreira fechada', 1.2);
+          if (event.open) this.haptics.pulse(HAPTIC.gate);
           break;
         case 'checkpoint':
           this.hud.showToast('Ponto seguro registrado', 1.4);
@@ -293,16 +346,36 @@ export class Game {
         case 'respawn':
           this.view?.snap();
           if (this.sim && this.view) this.rig.snapTo(this.sim, this.view.playerPosition);
-          this.hud.showToast('Você caiu no vazio — de volta ao ponto seguro', 2.2);
+          break;
+        case 'life-lost': {
+          const cause = event.reason === 'void' ? 'Caiu no vazio' : 'Atingida por um feixe';
+          const rest = event.lives === 1 ? 'resta 1 vida' : `restam ${event.lives} vidas`;
+          if (event.lives > 0) this.hud.showToast(`${cause} — ${rest}`, 2.2);
+          this.haptics.pulse([...HAPTIC.hurt]);
+          break;
+        }
+        case 'defeat':
+          this.defeat(event.time);
+          break;
+        case 'objective':
+          if (event.id !== 'portal') this.hud.showToast(`Objetivo cumprido: ${event.text}`, 2);
           break;
         case 'object-reset':
-          this.hud.showToast('Um objeto saiu da área e voltou ao início', 1.6);
+          // Só avisa do Cubo Denso, que importa para o desafio; caixas voltam em silêncio.
+          if (this.sim?.objects.find((o) => o.def.id === event.id)?.def.kind === 'denso') {
+            this.hud.showToast('O Cubo Denso saiu da área e voltou ao início', 1.8);
+          }
           break;
         case 'complete':
+          this.haptics.pulse([...HAPTIC.complete]);
           this.complete(event.time);
           break;
         case 'jump':
+          this.haptics.pulse(HAPTIC.jump);
+          break;
         case 'land':
+          // Só pousos fortes vibram (quedas longas ou gravidade pesada).
+          if (event.speed > 7) this.haptics.pulse(HAPTIC.land);
           break;
       }
     }
@@ -324,9 +397,10 @@ export class Game {
       const { steps, alpha: a } = this.stepper.advance(dt);
       alpha = a;
       const move = this.input.move();
+      const sprint = this.input.sprint();
       for (let i = 0; i < steps && this.state === 'playing'; i++) {
         view.beforeStep();
-        sim.step({ move, jump: this.jumpQueued });
+        sim.step({ move, jump: this.jumpQueued, sprint });
         this.jumpQueued = false;
         view.afterStep();
         this.handleEvents(sim.drainEvents());
@@ -356,6 +430,9 @@ export class Game {
         hint: sim.activeHint(),
         mode: this.input.mode,
         fps: this.store.data.settings.showFps ? this.fps : null,
+        lives: sim.lives,
+        maxLives: sim.maxLives,
+        objectives: sim.objectives,
       });
     }
     this.renderer.webgl.render(view.scene, this.rig.camera);
@@ -368,15 +445,22 @@ export class Game {
     return {
       state: this.state,
       screen: this.screens.current,
+      portraitBlocked: this.orientation.blocked,
+      fullscreen: isFullscreen(),
       mode: this.input.mode,
       level: sim?.level.id ?? null,
       player: p ? { x: p.x, y: p.y, z: p.z } : null,
       grounded: sim?.player.grounded ?? false,
+      sprint: this.input.sprint(),
+      speed: sim ? horizontalSpeed(sim) : 0,
       gravity: sim ? { ...sim.gravity.state } : null,
       plates: sim?.plates.map((pl) => ({ id: pl.def.id, force: pl.force, active: pl.active })) ?? [],
       gates: sim?.gates.map((g) => ({ id: g.def.id, open: g.open })) ?? [],
       time: sim?.time ?? 0,
       completed: sim?.completed ?? false,
+      defeated: sim?.defeated ?? false,
+      lives: sim?.lives ?? 0,
+      objectives: sim?.objectives.map((o) => ({ id: o.def.id, done: o.done })) ?? [],
       pixelRatio: this.renderer.pixelRatio,
       fps: this.fps,
       progress: this.store.data.progress,

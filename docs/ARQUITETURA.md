@@ -81,3 +81,23 @@ impossível.**
 comandos por quadro: movimento, giro da câmera e uma fila de ações. `TouchControls` desenha o
 direcional dinâmico e os botões — só dos poderes liberados. O tipo de controle em uso (teclado ou
 toque) muda os textos das dicas e mostra/esconde os botões de tela.
+
+## Vidas, feixes e objetivos (2.0)
+
+- `src/sim/hazards.ts`: posição (`hazardCenter`) e estado aceso/apagado (`hazardActive`) de cada
+  feixe dependem só do tempo de jogo; `hazardHits` testa esfera × caixa. Os robôs usam as mesmas
+  funções para prever a travessia, como uma pessoa que observa o ritmo.
+- `Simulation` guarda `lives`, `invulnerable` e `objectives`. Vazio ou feixe → `loseLife`: perde
+  uma vida e volta ao ponto seguro (com a gravidade daquele ponto, `CheckpointDef.gravity`); sem
+  vidas → `defeated` e a simulação para. Objetivos (`zone`, `gate`, `portal`) são marcados a cada
+  passo e geram eventos para o HUD.
+
+## Tela horizontal e controles (2.0)
+
+- `src/ui/orientation.ts`: `isPortraitBlocked` (aparelho de toque com altura > largura) e
+  `OrientationGuard`, que mostra o aviso para girar e pausa o jogo.
+- `src/ui/fullscreen.ts`: tela cheia + `screen.orientation.lock('landscape')` quando o navegador
+  permite.
+- Correr: `SimInput.sprint` troca a velocidade máxima (6 → 9,5 m/s); Shift no teclado,
+  `InputManager.setTouchSprint` no celular.
+- `src/input/haptics.ts`: vibração opcional (`navigator.vibrate`), desligável nos ajustes.

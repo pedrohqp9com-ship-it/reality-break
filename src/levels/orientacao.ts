@@ -69,7 +69,36 @@ export const orientacao: LevelDef = {
   ],
   gates: [{ id: 'barreira', center: centerOf(GATE_MIN, GATE_MAX), size: sizeOf(GATE_MIN, GATE_MAX) }],
   portal: { center: [0, 15.3, -6.3], normal: '+z', radius: 1.1 },
-  checkpoints: [],
+  checkpoints: [
+    {
+      // Logo acima da barreira, na parede norte (a gravidade volta a apontar para ela).
+      id: 'parede-alta',
+      zone: zone([-8, 11, -8], [8, 12.1, -6.5]),
+      spawn: [4.5, 11.7, -7.5],
+      yaw: 0,
+      gravity: '-z',
+    },
+  ],
+  lives: 3,
+  // Acima da barreira, um feixe rápido varre a parede norte.
+  hazards: [
+    {
+      id: 'feixe-parede',
+      center: [0, 12.6, -7.25],
+      size: [3, 0.4, 1.5],
+      motion: { axis: 0, amplitude: 5.5, period: 3.2 },
+    },
+  ],
+  objectives: [
+    { id: 'barreira', text: 'Abra a barreira com a placa da parede norte', kind: 'gate', gate: 'barreira' },
+    {
+      id: 'acima',
+      text: 'Suba acima da barreira',
+      kind: 'zone',
+      zone: zone([-8, 11.2, -8], [8, 24, 8]),
+    },
+    { id: 'portal', text: 'Pouse na sacada e entre no portal', kind: 'portal' },
+  ],
   hints: [
     {
       zone: zone([-8, 0, -6], [8, 10, 8]),
@@ -80,7 +109,11 @@ export const orientacao: LevelDef = {
       text: 'Placa na parede só sente força com a gravidade apontada para ela. Leve o Cubo Denso e use [PESADA].',
     },
     {
-      zone: zone([-8, 11, -8], [8, 24, 8]),
+      zone: zone([-8, 11, -8], [8, 13, 8]),
+      text: 'Um feixe varre a parede: espere ele passar. Depois, contorne a sacada.',
+    },
+    {
+      zone: zone([-8, 13, -8], [8, 24, 8]),
       text: 'Para pousar na sacada, olhe para ela (o chão original) e use [APONTAR] de novo.',
     },
   ],
