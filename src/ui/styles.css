@@ -332,8 +332,17 @@ h2 {
 }
 
 .result-best,
-.result-end {
+.result-end,
+.result-lives {
   color: var(--muted);
+}
+
+.eyebrow-danger {
+  color: var(--danger);
+}
+
+.panel-defeat {
+  border-color: rgba(255, 68, 102, 0.45);
 }
 
 .setting {
@@ -447,11 +456,38 @@ thead th {
   color: var(--cyan);
 }
 
+.hud-title-row {
+  gap: 10px;
+}
+
+.hud-lives {
+  display: flex;
+  gap: 4px;
+}
+
+/* Vida = losango de energia; apagado quando perdido. */
+.hud-life {
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--magenta);
+  transform: rotate(45deg);
+  opacity: 0.45;
+}
+
+.hud-life.full {
+  background: var(--magenta);
+  box-shadow: 0 0 8px var(--magenta);
+  opacity: 1;
+}
+
 .hud-objective {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 0.85rem;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.82rem;
   line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hud-timer {
@@ -959,11 +995,6 @@ thead th {
   }
 }
 
-@media (max-height: 420px), (max-width: 600px) {
-  .hud-objective {
-    display: none;
-  }
-}
 
 @media (max-height: 420px) {
   .panel {

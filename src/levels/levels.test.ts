@@ -61,7 +61,7 @@ describe('dados dos desafios', () => {
     // Textos de dica só usam marcadores conhecidos.
     for (const hint of level.hints) {
       for (const token of hint.text.match(/\[[A-Z]+\]/g) ?? []) {
-        expect(['[LEVE]', '[NORMAL]', '[PESADA]', '[INVERTER]', '[APONTAR]', '[PULAR]']).toContain(token);
+        expect(['[LEVE]', '[NORMAL]', '[PESADA]', '[INVERTER]', '[APONTAR]', '[PULAR]', '[CORRER]']).toContain(token);
       }
     }
   });
@@ -78,6 +78,19 @@ describe('dados dos desafios', () => {
       expect(level.statics.some((b) => sphereHitsBox(behind, 0.01, b))).toBe(true);
     }
   });
+});
+
+describe('objetos estáveis', () => {
+  it.each(LEVELS.map((l) => [l.id, l] as const))(
+    '%s: nenhum objeto entra em ciclo de cair e voltar ao inverter a gravidade',
+    (_, level) => {
+      const sim = new Simulation(level);
+      if (sim.gravity.has('flip')) sim.flipGravity();
+      runUntil(sim, 4, IDLE, () => false);
+      const resets = sim.drainEvents().filter((e) => e.type === 'object-reset');
+      expect(resets).toEqual([]);
+    },
+  );
 });
 
 describe('cada desafio exige o poder que apresenta', () => {
@@ -126,14 +139,16 @@ describe('cada desafio exige o poder que apresenta', () => {
   });
 });
 
-describe('cada desafio tem solução usando só os controles do jogador', () => {
-  it('Desafio 1 — Leveza', () => {
-    expect(solveLeveza(new Simulation(getLevel('leveza')))).toBe(true);
-  });
-  it('Desafio 2 — Inversão', () => {
-    expect(solveInversao(new Simulation(getLevel('inversao')))).toBe(true);
-  });
-  it('Desafio 3 — Orientação', () => {
-    expect(solveOrientacao(new Simulation(getLevel('orientacao')))).toBe(true);
+describe('cada desafio tem solução usando só os controles do jogador, sem perder vidas', () => {
+  const cases = [
+    ['Desafio 1 — Leveza', 'leveza', solveLeveza],
+    ['Desafio 2 — Inversão', 'inversao', solveInversao],
+    ['Desafio 3 — Orientação', 'orientacao', solveOrientacao],
+  ] as const;
+  it.each(cases)('%s', (_, id, solve) => {
+    const sim = new Simulation(getLevel(id));
+    expect(solve(sim)).toBe(true);
+    expect(sim.lives).toBe(sim.maxLives);
+    expect(sim.objectives.every((o) => o.done)).toBe(true);
   });
 });

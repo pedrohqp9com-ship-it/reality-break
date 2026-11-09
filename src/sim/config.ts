@@ -69,3 +69,6 @@ export const PLATE = {
  * amortece a correção de penetração e reduz o quique em quedas rápidas.
  */
 export const PLAYER_CONTACT_RELAXATION = 6;
+
+/** Proteção (s) contra feixes logo depois de voltar a um ponto seguro. */
+export const RESPAWN_INVULNERABILITY = 1.5;

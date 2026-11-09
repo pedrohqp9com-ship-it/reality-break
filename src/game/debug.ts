@@ -1,3 +1,4 @@
+import { hazardCenter } from '../sim/hazards';
 import type { Game } from './Game';
 
 declare global {
@@ -6,6 +7,7 @@ declare global {
       state: () => ReturnType<Game['debugState']>;
       teleport: (x: number, y: number, z: number) => void;
       setView: (yaw: number, pitch: number) => void;
+      hazardCenter: (id: string) => [number, number, number] | null;
     };
   }
 }
@@ -23,6 +25,10 @@ export function installDebugHooks(game: Game): void {
       if (!game.sim) return;
       game.sim.view.yaw = yaw;
       game.sim.view.pitch = pitch;
+    },
+    hazardCenter: (id) => {
+      const hazard = game.sim?.hazard(id);
+      return hazard && game.sim ? [...hazardCenter(hazard, game.sim.time)] : null;
     },
   };
 }

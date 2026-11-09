@@ -213,7 +213,14 @@ export class Screens {
     );
   }
 
-  complete(level: LevelDef, time: number, best: number, record: boolean, hasNext: boolean): void {
+  complete(
+    level: LevelDef,
+    time: number,
+    best: number,
+    record: boolean,
+    hasNext: boolean,
+    stats: { lives: number; maxLives: number },
+  ): void {
     this.show(
       'complete',
       el('div', {
@@ -224,6 +231,11 @@ export class Screens {
           el('p', {
             className: 'result-best',
             text: record ? 'Novo recorde!' : `Melhor tempo: ${formatTime(best)}`,
+          }),
+          el('p', {
+            className: 'result-lives',
+            attrs: { 'data-testid': 'result-lives' },
+            text: `Vidas restantes: ${stats.lives} de ${stats.maxLives}`,
           }),
           hasNext
             ? null
@@ -240,6 +252,33 @@ export class Screens {
               actionButton('Repetir', () => this.callbacks.restart(), { primary: !hasNext, testId: 'replay' }),
               actionButton('Menu principal', () => this.callbacks.menu()),
             ].filter((b): b is HTMLButtonElement => !!b),
+          }),
+        ],
+      }),
+    );
+  }
+
+  defeat(level: LevelDef, time: number, objectivesDone: number, objectivesTotal: number): void {
+    this.show(
+      'defeat',
+      el('div', {
+        children: [
+          el('span', { className: 'eyebrow eyebrow-danger', text: `Desafio ${level.number} · ${level.title}` }),
+          el('h2', { text: 'Sem vidas' }),
+          el('p', {
+            className: 'result-best',
+            text: `Você chegou a ${objectivesDone} de ${objectivesTotal} objetivos em ${formatTime(time)}.`,
+          }),
+          el('p', {
+            className: 'result-end',
+            text: 'Observe o ritmo dos feixes antes de atravessar e lembre-se: cair no vazio também custa uma vida.',
+          }),
+          el('div', {
+            className: 'menu-buttons',
+            children: [
+              actionButton('Tentar de novo', () => this.callbacks.restart(), { primary: true, testId: 'retry' }),
+              actionButton('Menu principal', () => this.callbacks.menu()),
+            ],
           }),
         ],
       }),

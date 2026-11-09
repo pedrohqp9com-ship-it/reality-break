@@ -30,6 +30,8 @@ import type { SurfaceStyle } from '../levels/types';
 import { axisVector } from '../sim/axis';
 import { PLAYER } from '../sim/config';
 import { GRAVITY_MULTIPLIER } from '../sim/gravity';
+import { FIXED_DT } from '../sim/config';
+import { hazardActive, hazardCenter, hazardWarning } from '../sim/hazards';
 import type { Simulation } from '../sim/simulation';
 import type { SharedTextures } from './assets';
 import { boxEdgesGeometry, mergeBoxes } from './geometry';
@@ -70,6 +72,7 @@ export class LevelView {
   private readonly playerSnapshot = snapshot();
   private readonly plateMaterials: MeshLambertMaterial[] = [];
   private readonly gateMaterials: MeshBasicMaterial[] = [];
+  private readonly hazardMeshes: { mesh: Mesh; glow: MeshBasicMaterial; core: MeshBasicMaterial }[] = [];
   private readonly avatar = new Group();
   private readonly avatarRing: Mesh;
   private readonly portal = new Group();
@@ -99,6 +102,7 @@ export class LevelView {
 
     this.buildScenery();
     this.buildPlatesAndGates();
+    this.buildHazards();
     this.buildObjects();
     this.avatarRing = this.buildAvatar();
     this.portalDisc = this.buildPortal();
@@ -193,6 +197,34 @@ export class LevelView {
       mesh.position.set(...gate.def.center);
       mesh.renderOrder = 3;
       this.gateMaterials.push(material);
+      this.scene.add(mesh);
+    }
+  }
+
+  /** Feixes de energia: halo transparente + núcleo brilhante. */
+  private buildHazards(): void {
+    for (const hazard of this.sim.level.hazards) {
+      const glow = this.track(
+        new MeshBasicMaterial({
+          color: 0xff2a6d,
+          transparent: true,
+          opacity: 0.55,
+          blending: AdditiveBlending,
+          depthWrite: false,
+        }),
+      );
+      const core = this.track(
+        new MeshBasicMaterial({ color: 0xffd1e0, transparent: true, opacity: 0.95, depthWrite: false }),
+      );
+      const mesh = new Mesh(this.track(new BoxGeometry(...hazard.size)), glow);
+      const inner = new Mesh(this.track(new BoxGeometry(...hazard.size)), core);
+      // Núcleo fino no meio do feixe (reduz as duas menores dimensões).
+      const [sx, sy, sz] = hazard.size;
+      const longest = Math.max(sx, sy, sz);
+      inner.scale.set(sx === longest ? 1 : 0.3, sy === longest ? 1 : 0.3, sz === longest ? 1 : 0.3);
+      mesh.add(inner);
+      mesh.renderOrder = 4;
+      this.hazardMeshes.push({ mesh, glow, core });
       this.scene.add(mesh);
     }
   }
@@ -394,6 +426,21 @@ export class LevelView {
       material.opacity += (target - material.opacity) * (1 - Math.exp(-dt * 10));
       if (material.map && !gate.open) material.map.offset.x = (this.elapsed * 0.6) % 1;
     });
+
+    // Feixes no instante que está na tela (entre os dois últimos passos da física).
+    const renderTime = Math.max(0, sim.time - FIXED_DT + alpha * FIXED_DT);
+    sim.level.hazards.forEach((hazard, i) => {
+      const { mesh, glow, core } = this.hazardMeshes[i]!;
+      mesh.position.set(...hazardCenter(hazard, renderTime));
+      const active = hazardActive(hazard, renderTime);
+      const warning = hazardWarning(hazard, renderTime);
+      const flicker = Math.sin(this.elapsed * 40) > 0 ? 1 : 0.4;
+      glow.opacity = active ? 0.5 + Math.sin(this.elapsed * 9) * 0.08 : warning ? 0.25 * flicker : 0.05;
+      core.opacity = active ? 0.95 : warning ? 0.5 * flicker : 0;
+    });
+
+    // Proteção depois de perder uma vida: a sonda pisca.
+    this.avatar.visible = sim.invulnerable <= 0 || Math.floor(this.elapsed * 12) % 2 === 0;
 
     this.portalRings[0]!.rotation.z += dt * 0.6;
     this.portalRings[1]!.rotation.z -= dt * 1.4;

@@ -3,6 +3,8 @@ import { Vector3 } from 'three';
 import type {
   Aabb,
   CheckpointDef,
+  HazardDef,
+  ObjectiveDef,
   DynamicBoxDef,
   GateDef,
   LevelDef,
@@ -11,7 +13,8 @@ import type {
   Vec3Tuple,
 } from '../levels/types';
 import { axisVector, type Axis, type Vec3Like } from './axis';
-import { FIXED_DT, GROUP, PLATE, PLAYER } from './config';
+import { FIXED_DT, GROUP, PLATE, PLAYER, RESPAWN_INVULNERABILITY } from './config';
+import { hazardHits } from './hazards';
 import { GravityFrame } from './frame';
 import {
   DEFAULT_GRAVITY,
@@ -49,8 +52,18 @@ export type SimEvent =
   | { readonly type: 'gate'; readonly id: string; readonly open: boolean }
   | { readonly type: 'checkpoint'; readonly id: string }
   | { readonly type: 'respawn' }
+  | { readonly type: 'life-lost'; readonly reason: LifeLossReason; readonly lives: number }
+  | { readonly type: 'defeat'; readonly time: number }
+  | { readonly type: 'objective'; readonly id: string; readonly text: string }
   | { readonly type: 'object-reset'; readonly id: string }
   | { readonly type: 'complete'; readonly time: number };
+
+export type LifeLossReason = 'void' | 'hazard';
+
+export interface ObjectiveRuntime {
+  readonly def: ObjectiveDef;
+  done: boolean;
+}
 
 export interface StaticRuntime {
   readonly def: StaticBoxDef;
@@ -134,8 +147,15 @@ export class Simulation {
   /** Tempo de jogo (s) desde o início/reinício do desafio. */
   time = 0;
   completed = false;
+  /** Sem vidas: o desafio termina em derrota. */
+  defeated = false;
+  lives: number;
+  /** Tempo (s) de proteção depois de voltar a um ponto seguro. */
+  invulnerable = 0;
+  readonly objectives: ObjectiveRuntime[];
   private respawnPoint: Vec3Tuple;
   private respawnYaw: number;
+  private respawnGravity: Axis;
   private checkpointId: string | null = null;
   private events: SimEvent[] = [];
 
@@ -168,7 +188,19 @@ export class Simulation {
     this.player = new Player(this.physics, toVec(level.spawn));
     this.respawnPoint = level.spawn;
     this.respawnYaw = level.yaw;
+    this.respawnGravity = DEFAULT_GRAVITY.axis;
     this.view.yaw = level.yaw;
+    this.lives = level.lives;
+    this.objectives = level.objectives.map((def) => ({ def, done: false }));
+  }
+
+  get maxLives(): number {
+    return this.level.lives;
+  }
+
+  /** O desafio acabou (vitória ou derrota): a simulação para. */
+  get finished(): boolean {
+    return this.completed || this.defeated;
   }
 
   get world() {
@@ -179,9 +211,14 @@ export class Simulation {
   reset(): void {
     this.time = 0;
     this.completed = false;
+    this.defeated = false;
+    this.lives = this.level.lives;
+    this.invulnerable = 0;
+    for (const objective of this.objectives) objective.done = false;
     this.checkpointId = null;
     this.respawnPoint = this.level.spawn;
     this.respawnYaw = this.level.yaw;
+    this.respawnGravity = DEFAULT_GRAVITY.axis;
     for (const object of this.objects) this.resetObject(object, false);
     for (const plate of this.plates) {
       plate.force = 0;
@@ -225,7 +262,7 @@ export class Simulation {
   }
 
   step(input: SimInput, dt = FIXED_DT): void {
-    if (this.completed) return;
+    if (this.finished) return;
     const up = this.up(tmpUp);
     this.frame.moveBasis(this.view.yaw, tmpForward, tmpRight);
     if (this.player.preStep(dt, input.move, input.jump, tmpForward, tmpRight, up, !!input.sprint)) {
@@ -243,8 +280,11 @@ export class Simulation {
     }
     this.updatePlates(dt);
     this.updateCheckpoints();
+    this.invulnerable = Math.max(0, this.invulnerable - dt);
     this.updateBounds();
+    this.updateHazards();
     this.updatePortal();
+    this.updateObjectives();
   }
 
   drainEvents(): SimEvent[] {
@@ -343,11 +383,12 @@ export class Simulation {
     this.checkpointId = checkpoint.id;
     this.respawnPoint = checkpoint.spawn;
     this.respawnYaw = checkpoint.yaw;
+    this.respawnGravity = checkpoint.gravity ?? DEFAULT_GRAVITY.axis;
     this.events.push({ type: 'checkpoint', id: checkpoint.id });
   }
 
   private updateBounds(): void {
-    if (!insideAabb(this.player.position, this.level.bounds)) this.respawn(true);
+    if (!this.finished && !insideAabb(this.player.position, this.level.bounds)) this.loseLife('void');
     for (const object of this.objects) {
       const home = object.def.home ?? this.level.bounds;
       if (!insideAabb(object.body.position, home)) this.resetObject(object, true);
@@ -368,9 +409,62 @@ export class Simulation {
     if (emit) this.events.push({ type: 'object-reset', id: object.def.id });
   }
 
-  /** Volta ao último ponto seguro com a gravidade inicial do desafio. */
+  /** Feixes ativos tiram uma vida (exceto logo depois de voltar a um ponto seguro). */
+  private updateHazards(): void {
+    if (this.finished || this.invulnerable > 0) return;
+    const p = this.player.position;
+    for (const hazard of this.level.hazards) {
+      if (hazardHits(hazard, this.time, p, PLAYER.radius)) {
+        this.loseLife('hazard');
+        return;
+      }
+    }
+  }
+
+  /** Perde uma vida; sem vidas, o desafio termina em derrota. */
+  private loseLife(reason: LifeLossReason): void {
+    this.lives = Math.max(0, this.lives - 1);
+    this.events.push({ type: 'life-lost', reason, lives: this.lives });
+    if (this.lives === 0) {
+      this.defeated = true;
+      this.events.push({ type: 'defeat', time: this.time });
+      return;
+    }
+    this.respawn(true);
+    this.invulnerable = RESPAWN_INVULNERABILITY;
+  }
+
+  private updateObjectives(): void {
+    const p = this.player.position;
+    for (const objective of this.objectives) {
+      if (objective.done) continue;
+      const def = objective.def;
+      const done =
+        def.kind === 'zone'
+          ? insideAabb(p, def.zone)
+          : def.kind === 'gate'
+            ? this.gates.some((g) => g.def.id === def.gate && g.open)
+            : this.completed;
+      if (done) {
+        objective.done = true;
+        this.events.push({ type: 'objective', id: def.id, text: def.text });
+      }
+    }
+  }
+
+  /** Objetivo atual: o primeiro ainda não cumprido. */
+  currentObjective(): ObjectiveRuntime | null {
+    return this.objectives.find((o) => !o.done) ?? null;
+  }
+
+  /** Feixe (por id), para a interface e os testes. */
+  hazard(id: string): HazardDef | undefined {
+    return this.level.hazards.find((h) => h.id === id);
+  }
+
+  /** Volta ao último ponto seguro, com a gravidade daquele ponto. */
   private respawn(emit: boolean): void {
-    const change = this.gravity.reset();
+    const change = this.gravity.resetTo({ axis: this.respawnGravity, level: DEFAULT_GRAVITY.level });
     this.frame.reset(this.gravity.state.axis);
     this.applyWorldGravity();
     this.player.teleport(toVec(this.respawnPoint));
@@ -383,6 +477,7 @@ export class Simulation {
   }
 
   private updatePortal(): void {
+    if (this.finished) return;
     const { center, radius } = this.level.portal;
     const p = this.player.position;
     const d = Math.hypot(p.x - center[0], p.y - center[1], p.z - center[2]);

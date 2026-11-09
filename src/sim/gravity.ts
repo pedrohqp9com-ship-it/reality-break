@@ -92,9 +92,13 @@ export class GravityController {
   }
 
   reset(): GravityChange | null {
-    const { axis, level } = this.initial;
-    if (axis === this.current.axis && level === this.current.level) return null;
-    return this.apply(this.initial, 'reset');
+    return this.resetTo(this.initial);
+  }
+
+  /** Volta a um estado (ponto seguro), sem depender dos poderes liberados. */
+  resetTo(state: GravityState): GravityChange | null {
+    if (state.axis === this.current.axis && state.level === this.current.level) return null;
+    return this.apply(state, 'reset');
   }
 
   private apply(next: GravityState, cause: GravityCause): GravityChange {

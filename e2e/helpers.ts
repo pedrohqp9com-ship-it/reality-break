@@ -7,6 +7,7 @@ declare global {
       state: () => unknown;
       teleport: (x: number, y: number, z: number) => void;
       setView: (yaw: number, pitch: number) => void;
+      hazardCenter: (id: string) => [number, number, number] | null;
     };
   }
 }
@@ -27,6 +28,9 @@ export type DebugState = {
   gates: { id: string; open: boolean }[];
   time: number;
   completed: boolean;
+  defeated: boolean;
+  lives: number;
+  objectives: { id: string; done: boolean }[];
   progress: { completed: string[]; bestTimes: Record<string, number> };
 };
 

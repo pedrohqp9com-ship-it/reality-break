@@ -27,7 +27,7 @@ import { detectTouchDevice, OrientationGuard } from '../ui/orientation';
 import { RotateOverlay } from '../ui/RotateOverlay';
 import { Screens } from '../ui/Screens';
 
-export type GameState = 'menu' | 'briefing' | 'playing' | 'paused' | 'complete';
+export type GameState = 'menu' | 'briefing' | 'playing' | 'paused' | 'complete' | 'defeat';
 
 const tmpGravity = new Vector3();
 const tmpVelocity = new Vector3();
@@ -237,7 +237,19 @@ export class Game {
     this.store.save();
     this.input.releasePointerLock();
     this.setState('complete');
-    this.screens.complete(level, time, progress.bestTimes[level.id] ?? time, record, !!nextLevel(level.id));
+    this.screens.complete(level, time, progress.bestTimes[level.id] ?? time, record, !!nextLevel(level.id), {
+      lives: this.sim.lives,
+      maxLives: this.sim.maxLives,
+    });
+  }
+
+  /** Sem vidas: tela de derrota (o progresso salvo não muda). */
+  private defeat(time: number): void {
+    if (!this.sim) return;
+    this.input.releasePointerLock();
+    this.setState('defeat');
+    const done = this.sim.objectives.filter((o) => o.done).length;
+    this.screens.defeat(this.sim.level, time, done, this.sim.objectives.length);
   }
 
   /** Celular em pé: mostra o aviso para girar e pausa o jogo. */
@@ -334,10 +346,25 @@ export class Game {
         case 'respawn':
           this.view?.snap();
           if (this.sim && this.view) this.rig.snapTo(this.sim, this.view.playerPosition);
-          this.hud.showToast('Você caiu no vazio — de volta ao ponto seguro', 2.2);
+          break;
+        case 'life-lost': {
+          const cause = event.reason === 'void' ? 'Caiu no vazio' : 'Atingida por um feixe';
+          const rest = event.lives === 1 ? 'resta 1 vida' : `restam ${event.lives} vidas`;
+          if (event.lives > 0) this.hud.showToast(`${cause} — ${rest}`, 2.2);
+          this.haptics.pulse([...HAPTIC.hurt]);
+          break;
+        }
+        case 'defeat':
+          this.defeat(event.time);
+          break;
+        case 'objective':
+          if (event.id !== 'portal') this.hud.showToast(`Objetivo cumprido: ${event.text}`, 2);
           break;
         case 'object-reset':
-          this.hud.showToast('Um objeto saiu da área e voltou ao início', 1.6);
+          // Só avisa do Cubo Denso, que importa para o desafio; caixas voltam em silêncio.
+          if (this.sim?.objects.find((o) => o.def.id === event.id)?.def.kind === 'denso') {
+            this.hud.showToast('O Cubo Denso saiu da área e voltou ao início', 1.8);
+          }
           break;
         case 'complete':
           this.haptics.pulse([...HAPTIC.complete]);
@@ -403,6 +430,9 @@ export class Game {
         hint: sim.activeHint(),
         mode: this.input.mode,
         fps: this.store.data.settings.showFps ? this.fps : null,
+        lives: sim.lives,
+        maxLives: sim.maxLives,
+        objectives: sim.objectives,
       });
     }
     this.renderer.webgl.render(view.scene, this.rig.camera);
@@ -428,6 +458,9 @@ export class Game {
       gates: sim?.gates.map((g) => ({ id: g.def.id, open: g.open })) ?? [],
       time: sim?.time ?? 0,
       completed: sim?.completed ?? false,
+      defeated: sim?.defeated ?? false,
+      lives: sim?.lives ?? 0,
+      objectives: sim?.objectives.map((o) => ({ id: o.def.id, done: o.done })) ?? [],
       pixelRatio: this.renderer.pixelRatio,
       fps: this.fps,
       progress: this.store.data.progress,

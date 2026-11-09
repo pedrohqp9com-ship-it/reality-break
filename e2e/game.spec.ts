@@ -341,3 +341,55 @@ test.describe('tela cheia', () => {
     await expect.poll(async () => (await gameState(page)).fullscreen).toBe(false);
   });
 });
+
+test.describe('vidas, objetivos, vitória e derrota', () => {
+  test('HUD mostra vidas e o objetivo atual, que avança sozinho', async ({ page }) => {
+    await openGame(page);
+    await startLevel(page);
+    await expect(page.getByTestId('lives')).toHaveAttribute('aria-label', 'Vidas: 3 de 3');
+    await expect(page.getByTestId('objective')).toHaveText('Objetivo 1/3: Suba na plataforma de 3,2 m');
+    await page.evaluate(() => window.__REALITY_BREAK__!.teleport(0, 3.8, -14));
+    await expect(page.getByTestId('objective')).toHaveText('Objetivo 2/3: Abra a barreira com a placa');
+  });
+
+  test('um feixe de energia tira uma vida e devolve ao ponto seguro', async ({ page }) => {
+    await openGame(page);
+    await startLevel(page);
+    await page.evaluate(() => window.__REALITY_BREAK__!.teleport(0, 3.8, -13.5)); // ponto seguro
+    await waitGameTime(page, 0.2);
+    await page.evaluate(() => {
+      const debug = window.__REALITY_BREAK__!;
+      const [x, y, z] = debug.hazardCenter('feixe-plataforma')!;
+      debug.teleport(x, y, z);
+    });
+    await expect.poll(async () => (await gameState(page)).lives).toBe(2);
+    await expect(page.getByTestId('lives')).toHaveAttribute('aria-label', 'Vidas: 2 de 3');
+    await expect(page.getByTestId('toast')).toContainText('feixe');
+    expect((await gameState(page)).player!.z).toBeGreaterThan(-15);
+  });
+
+  test('sem vidas: tela de derrota; "Tentar de novo" recomeça com 3 vidas', async ({ page }) => {
+    await seedProgress(page, ['leveza']);
+    await openGame(page);
+    await startLevel(page, 'level-inversao');
+    for (let i = 3; i > 0; i--) {
+      // Cair no vazio (abaixo do chão) custa uma vida.
+      await page.evaluate(() => window.__REALITY_BREAK__!.teleport(0, -20, -26));
+      await expect.poll(async () => (await gameState(page)).lives).toBe(i - 1);
+    }
+    await expect(page.getByTestId('screen-defeat')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sem vidas' })).toBeVisible();
+    expect((await gameState(page)).defeated).toBe(true);
+    await page.getByTestId('retry').click();
+    await expect.poll(async () => (await gameState(page)).state).toBe('playing');
+    expect((await gameState(page)).lives).toBe(3);
+  });
+
+  test('vitória mostra o tempo e as vidas restantes', async ({ page }) => {
+    await openGame(page);
+    await startLevel(page);
+    await page.evaluate(() => window.__REALITY_BREAK__!.teleport(0, 4.6, -34));
+    await expect(page.getByTestId('screen-complete')).toBeVisible();
+    await expect(page.getByTestId('result-lives')).toHaveText('Vidas restantes: 3 de 3');
+  });
+});

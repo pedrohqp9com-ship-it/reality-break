@@ -4,7 +4,8 @@ import { leveza } from '../levels/leveza';
 import { orientacao } from '../levels/orientacao';
 import { IDLE, measureJumpHeight, run, runUntil } from '../test/helpers';
 import { EARTH_GRAVITY, jumpHeight } from './gravity';
-import { PLAYER, TERMINAL_SPEED } from './config';
+import { PLAYER, RESPAWN_INVULNERABILITY, TERMINAL_SPEED } from './config';
+import { hazardCenter } from './hazards';
 import { Simulation, type SimEvent } from './simulation';
 
 function events(sim: Simulation, type: SimEvent['type']) {
@@ -172,7 +173,7 @@ describe('placas de pressão e barreiras', () => {
   it('barreira fechada bloqueia; aberta deixa passar', () => {
     const sim = new Simulation(leveza);
     const walk = { move: { x: 0, y: 1 }, jump: false };
-    sim.player.teleport({ x: -3, y: 3.8, z: -26 });
+    sim.player.teleport({ x: -3, y: 3.8, z: -26.6 }); // depois do feixe da plataforma
     run(sim, 2, walk);
     expect(sim.player.position.z).toBeGreaterThan(-28);
 
@@ -193,7 +194,7 @@ describe('placas de pressão e barreiras', () => {
     cube.body.position.set(-4, 3.75, -18); // tira o cubo da placa
     run(sim, 0.3);
     expect(sim.gates[0]!.open).toBe(true);
-    sim.player.teleport({ x: -3, y: 3.75, z: -25 });
+    sim.player.teleport({ x: -3, y: 3.75, z: -23.8 }); // antes do feixe da plataforma
     run(sim, 0.3);
     expect(sim.gates[0]!.open).toBe(false);
   });
@@ -226,8 +227,10 @@ describe('vazio, pontos seguros e portal', () => {
     sim.setIntensity('pesada');
     sim.player.teleport({ x: 0, y: -1, z: -26 }); // sobre o vão
     run(sim, 3);
-    const respawned = sim.drainEvents().some((e) => e.type === 'respawn');
-    expect(respawned).toBe(true);
+    const drained = sim.drainEvents();
+    expect(drained.some((e) => e.type === 'respawn')).toBe(true);
+    expect(drained).toContainEqual({ type: 'life-lost', reason: 'void', lives: 2 });
+    expect(sim.lives).toBe(2);
     expect(sim.player.position.z).toBeCloseTo(-19, 0);
     expect(sim.gravity.state).toEqual({ axis: '-y', level: 'normal' });
   });
@@ -268,5 +271,90 @@ describe('vazio, pontos seguros e portal', () => {
     const cube = sim.objects[0]!;
     expect(cube.body.position.x).toBeCloseTo(cube.def.center[0]);
     expect(sim.drainEvents()).toEqual([]);
+  });
+});
+
+describe('vidas, feixes de energia e objetivos', () => {
+  /** Coloca a sonda bem no meio de um feixe, no instante atual. */
+  function intoHazard(sim: Simulation, id: string) {
+    const hazard = sim.hazard(id)!;
+    const [x, y, z] = hazardCenter(hazard, sim.time + 1 / 60);
+    sim.player.teleport({ x, y, z });
+    sim.step(IDLE);
+  }
+
+  it('tocar um feixe custa uma vida e volta ao ponto seguro, com proteção curta', () => {
+    const sim = new Simulation(leveza);
+    sim.player.teleport({ x: 0, y: 3.8, z: -13.5 }); // ponto seguro da plataforma
+    run(sim, 0.2);
+    sim.drainEvents();
+    intoHazard(sim, 'feixe-plataforma');
+    expect(sim.lives).toBe(2);
+    expect(sim.drainEvents()).toContainEqual({ type: 'life-lost', reason: 'hazard', lives: 2 });
+    expect(sim.player.position.z).toBeCloseTo(-13.5, 0);
+    expect(sim.invulnerable).toBeCloseTo(RESPAWN_INVULNERABILITY, 1);
+    // Protegida, a sonda não perde outra vida de imediato.
+    intoHazard(sim, 'feixe-plataforma');
+    expect(sim.lives).toBe(2);
+  });
+
+  it('sem vidas, o desafio termina em derrota e a simulação para', () => {
+    const sim = new Simulation(leveza);
+    for (let i = 0; i < 3; i++) {
+      sim.invulnerable = 0;
+      intoHazard(sim, 'feixe-plataforma');
+    }
+    expect(sim.lives).toBe(0);
+    expect(sim.defeated).toBe(true);
+    expect(sim.drainEvents().some((e) => e.type === 'defeat')).toBe(true);
+    const t = sim.time;
+    run(sim, 0.5);
+    expect(sim.time).toBe(t);
+    sim.reset();
+    expect(sim.lives).toBe(3);
+    expect(sim.defeated).toBe(false);
+  });
+
+  it('feixe piscante só fere quando aceso', () => {
+    const sim = new Simulation(inversao);
+    const curtain = sim.hazard('cortina-teto')!;
+    // Fase apagada: meio do trecho apagado do ciclo.
+    sim.time = curtain.blink!.period * 0.75;
+    intoHazard(sim, 'cortina-teto');
+    expect(sim.lives).toBe(3);
+    sim.time = curtain.blink!.period * 1.2; // aceso
+    intoHazard(sim, 'cortina-teto');
+    expect(sim.lives).toBe(2);
+  });
+
+  it('ponto seguro na parede devolve a gravidade apontada para ela', () => {
+    const sim = new Simulation(orientacao);
+    sim.view.yaw = 0;
+    sim.view.pitch = 0;
+    sim.aimGravity();
+    sim.player.teleport({ x: 4.5, y: 11.7, z: -7.5 });
+    run(sim, 0.2);
+    expect(sim.drainEvents()).toContainEqual({ type: 'checkpoint', id: 'parede-alta' });
+    sim.flipGravity(); // erra: cai para longe da parede...
+    sim.player.teleport({ x: 0, y: 40, z: 0 }); // ...e sai da área do desafio
+    sim.step(IDLE);
+    expect(sim.lives).toBe(2);
+    expect(sim.gravity.state.axis).toBe('-z');
+    expect(sim.up().z).toBe(1);
+    run(sim, 1);
+    expect(sim.player.grounded).toBe(true);
+    expect(sim.player.position.z).toBeCloseTo(-7.5, 1);
+  });
+
+  it('objetivos são cumpridos pela simulação, em ordem livre', () => {
+    const sim = new Simulation(leveza);
+    expect(sim.currentObjective()?.def.id).toBe('subir');
+    sim.player.teleport({ x: 0, y: 3.8, z: -14 });
+    sim.step(IDLE);
+    expect(sim.objectives.find((o) => o.def.id === 'subir')?.done).toBe(true);
+    expect(sim.drainEvents()).toContainEqual({ type: 'objective', id: 'subir', text: 'Suba na plataforma de 3,2 m' });
+    expect(sim.currentObjective()?.def.id).toBe('barreira');
+    sim.reset();
+    expect(sim.objectives.every((o) => !o.done)).toBe(true);
   });
 });
